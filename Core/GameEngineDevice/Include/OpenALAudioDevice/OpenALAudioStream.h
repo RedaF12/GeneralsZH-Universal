@@ -57,6 +57,7 @@ public:
 protected:
     std::function<bool()> m_requireDataCallback = nullptr;
     bool m_endOfData = false; ///< GeneralsX: source stream signalled true EOF; stop restarting it
+    int m_stalledProbes = 0;  ///< GeneralsX: consecutive EOF-probes that produced no new data
     ALuint m_source = 0;
     ALuint m_buffers[AL_STREAM_BUFFER_COUNT] = {};
     unsigned int m_current_buffer_idx = 0;

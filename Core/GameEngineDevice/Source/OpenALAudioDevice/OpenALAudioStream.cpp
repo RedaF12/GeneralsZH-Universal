@@ -92,8 +92,27 @@ void OpenALAudioStream::update()
         alGetSourcei(m_source, AL_BUFFERS_PROCESSED, &processedNow);
         if (sourceState == AL_STOPPED && num_queued > 0 && processedNow >= num_queued
             && !m_endOfData && m_requireDataCallback) {
-            if (!m_requireDataCallback()) {
-                m_endOfData = true;
+            ALint queuedBefore = num_queued;
+            bool moreData = m_requireDataCallback();
+            ALint queuedAfter = 0;
+            alGetSourcei(m_source, AL_BUFFERS_QUEUED, &queuedAfter);
+            if (!moreData) {
+                m_endOfData = true;   // definitive EOF from the decoder
+            }
+            else if (queuedAfter <= queuedBefore) {
+                // GeneralsX @bugfix 04/07/2026 The decoder claims more data is coming but
+                // produced none. Decode here is synchronous, so a persistently failing
+                // packet never heals — and without this, the restart guard below replays
+                // the already-played queue forever: the audible "chirping" loop after a
+                // voice line, which also pins the stream un-stopped and holds the
+                // disallow-speech flag (silencing subsequent EVA). Three consecutive
+                // no-growth probes = the stream is done; latch EOF and let it stop.
+                if (++m_stalledProbes >= 3) {
+                    m_endOfData = true;
+                }
+            }
+            else {
+                m_stalledProbes = 0;
             }
         }
     }
@@ -188,6 +207,7 @@ void OpenALAudioStream::reset()
     }
     m_current_buffer_idx = 0;
     m_endOfData = false;  // GeneralsX @bugfix 14/06/2026 streams are reused (handleToKill/replace); clear EOF latch
+    m_stalledProbes = 0;
 }
 
 bool OpenALAudioStream::isPlaying()
