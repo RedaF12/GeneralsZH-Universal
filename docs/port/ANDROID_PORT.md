@@ -1,9 +1,10 @@
 # Zero Hour on Android — Port Guide
 
 **Status: first full implementation pass, awaiting on-device bring-up.** All
-code, build system, packaging, and the app shell are in place (July 2026); the
-build has not yet been run against a real NDK + device, so expect the usual
-cross-compile debugging round. The verification checklist at the bottom is the
+code, build system, packaging, the app shell, and a GitHub Actions CI build
+(§3, Option A) are in place (July 2026); none of it has yet been run end to
+end against a real device, so expect the usual cross-compile debugging round
+once a build is produced. The verification checklist at the bottom is the
 work plan for that bring-up — it mirrors how the iOS port (see
 [`PORTING_PLAYBOOK.md`](PORTING_PLAYBOOK.md)) was landed and hardened.
 
@@ -103,6 +104,35 @@ can run this port.
   Android-side DXVK configuration and driver quirks.
 
 ## 3. Building
+
+### Option A — GitHub Actions (no local NDK/toolchain needed)
+
+`.github/workflows/build-android.yml` builds the whole stack on a GitHub-hosted
+runner and uploads a ready-to-sideload APK as a workflow artifact:
+vcpkg deps → DXVK d3d8/d3d9 → `libmain.so` → Gradle `assembleDebug`, with the
+same artifact verification (`Sdl3WsiDriver` compiled in, AArch64 ELF) the local
+build script does.
+
+Trigger it from the **Actions** tab → *Build Android* → *Run workflow*, or just
+push to `main`/`claude/**` touching engine or `android/` files. Download the
+`GeneralsXZH-android-<run>.apk` artifact from the run summary and `adb install`
+it (or transfer + tap-install on the phone).
+
+**Every CI build is signed with the same committed debug key**
+(`android/app/debug.keystore` — a fixed, non-secret debug key checked into the
+repo instead of the machine-local key Android tooling normally auto-generates)
+and gets a strictly increasing `versionCode` from the workflow run number.
+That combination is what makes consecutive CI builds installable **as updates
+over each other** — tap a newer APK on the phone without uninstalling first —
+instead of Android refusing the install over a signature mismatch.
+
+**On a fork, Actions must be enabled once**: GitHub disables workflow runs on
+forks by default. Go to the repo's **Actions** tab → click **"I understand my
+workflows, go ahead and enable them"** (or Settings → Actions → General →
+"Allow all actions and reusable workflows"). This is a one-time, per-repo
+setting; it isn't something a workflow file can turn on for itself.
+
+### Option B — Local build
 
 Host: Linux or macOS.
 

@@ -180,8 +180,21 @@ else
     echo "       Android Studio (which generates the wrapper), then re-run this script."
     exit 1
 fi
-echo "==> ${GRADLE_CMD} assembleDebug"
-"${GRADLE_CMD}" assembleDebug
+# versionCode must strictly increase for Android to accept installing one
+# APK "over" another (a file-manager tap install refuses a same-or-lower
+# versionCode; adb install -r doesn't care, but CI builds meant to be
+# installed as updates need this). Defaults to 1 for local ad-hoc builds;
+# CI passes its monotonic run number via GX_ANDROID_VERSION_CODE.
+# (Plain string, not a bash array: an empty array expanded with "${arr[@]}"
+# under `set -u` throws "unbound variable" on bash < 4.4 — still the default
+# /bin/bash on macOS, which this script also runs on.)
+GRADLE_VERSION_ARG=""
+if [[ -n "${GX_ANDROID_VERSION_CODE:-}" ]]; then
+    GRADLE_VERSION_ARG="-PandroidVersionCode=${GX_ANDROID_VERSION_CODE}"
+fi
+
+echo "==> ${GRADLE_CMD} assembleDebug ${GRADLE_VERSION_ARG}"
+"${GRADLE_CMD}" assembleDebug ${GRADLE_VERSION_ARG}
 
 APK="${ANDROID_DIR}/app/build/outputs/apk/debug/app-debug.apk"
 if [[ ! -f "${APK}" ]]; then

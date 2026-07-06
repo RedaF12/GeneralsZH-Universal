@@ -1,0 +1,208 @@
+name: Build Android
+
+permissions:
+  contents: read
+  pull-requests: read
+
+on:
+  push:
+    branches:
+      - main
+      - 'claude/**'
+    paths:
+      - 'GeneralsMD/**'
+      - 'Core/**'
+      - 'Dependencies/**'
+      - 'cmake/**'
+      - 'android/**'
+      - 'scripts/build/android/**'
+      - 'CMakeLists.txt'
+      - 'CMakePresets.json'
+      - 'vcpkg.json'
+      - '.github/workflows/build-android.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'GeneralsMD/**'
+      - 'Core/**'
+      - 'Dependencies/**'
+      - 'cmake/**'
+      - 'android/**'
+      - 'scripts/build/android/**'
+      - 'CMakeLists.txt'
+      - 'CMakePresets.json'
+      - 'vcpkg.json'
+      - '.github/workflows/build-android.yml'
+  workflow_dispatch:
+    inputs:
+      preset:
+        type: choice
+        description: "CMake preset for Android"
+        options:
+          - android-vulkan
+        default: android-vulkan
+
+jobs:
+  build-android:
+    name: apk@${{ inputs.preset || 'android-vulkan' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      PRESET: ${{ inputs.preset || 'android-vulkan' }}
+      # Pinned exact NDK release (not "latest") so a cross-compile that works
+      # today doesn't silently pick up a different toolchain in six months.
+      NDK_VERSION: "27.2.12479018"
+      GRADLE_VERSION: "8.9"
+
+    steps:
+      # GeneralsX @build Android CI 06/07/2026 Node 24 compatible action majors, matching the other platform workflows.
+      - name: Checkout Code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          submodules: false
+
+      - name: Checkout DXVK fork submodule
+        run: |
+          git submodule update --init --depth 1 references/fbraz3-dxvk
+          # Pinned commit the superproject's tree points at (reads the gitlink,
+          # not the submodule's own shallow history) — used below as a cache key
+          # component so a re-pin of the submodule busts the DXVK build cache.
+          echo "DXVK_REF=$(git rev-parse HEAD:references/fbraz3-dxvk)" >> "$GITHUB_ENV"
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      # GeneralsX @build Android CI 06/07/2026 ubuntu-latest GitHub-hosted runners
+      # ship a full Android SDK (cmdline-tools, licenses pre-accepted, ANDROID_HOME
+      # set) — see actions/runner-images. Installing packages through its own
+      # sdkmanager is simpler and more robust than fetching a raw NDK zip by hand:
+      # it reuses the runner's already-configured SDK root and needs no separate
+      # platform-tools/build-tools step, both of which AGP also requires.
+      - name: Install Android SDK packages (NDK + platform + build-tools)
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager --install "ndk;${{ env.NDK_VERSION }}" "platforms;android-35" "build-tools;35.0.0"
+          echo "ANDROID_NDK_HOME=${ANDROID_SDK_ROOT}/ndk/${{ env.NDK_VERSION }}" >> "$GITHUB_ENV"
+
+      # Gradle: this project intentionally doesn't commit a wrapper (binary jar),
+      # so use Gradle's own official action, which downloads + verifies the
+      # requested distribution and puts a `gradle` command on PATH — exactly
+      # what scripts/build/android/package-android-zh.sh looks for.
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: ${{ env.GRADLE_VERSION }}
+
+      - name: Install build tools (meson, ninja, pkg-config)
+        run: |
+          # apt's meson, not pip: ubuntu-latest (24.04) marks the system Python
+          # as externally-managed (PEP 668), so a plain `pip install`, even
+          # with --user, refuses to run outside a venv.
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends \
+            ninja-build meson pkg-config
+          meson --version
+          ninja --version
+
+      - name: Cache vcpkg
+        id: cache-vcpkg
+        uses: actions/cache@v5
+        with:
+          path: /opt/vcpkg
+          key: vcpkg-android-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-lock.json') }}
+          restore-keys: |
+            vcpkg-android-${{ runner.os }}-
+
+      # Gradle's own dependency/build cache is handled by gradle/actions/setup-gradle above.
+
+      - name: Cache DXVK build
+        uses: actions/cache@v5
+        with:
+          path: build/${{ env.PRESET }}/_deps/dxvk-build-android
+          key: dxvk-android-${{ runner.os }}-${{ env.DXVK_REF }}-${{ hashFiles('Patches/dxvk-android.patch', 'Patches/dxvk-ios.patch', 'cmake/dx8.cmake', 'cmake/meson-arm64-android-cross.ini.in') }}
+
+      - name: Bootstrap vcpkg
+        run: |
+          mkdir -p /opt/vcpkg
+          if [ ! -f /opt/vcpkg/vcpkg ]; then
+            git clone https://github.com/microsoft/vcpkg.git /opt/vcpkg
+            git -C /opt/vcpkg checkout ffc071e0c08432c60c9b64f00334c0227667931b
+            /opt/vcpkg/bootstrap-vcpkg.sh -disableMetrics
+          fi
+          echo "VCPKG_ROOT=/opt/vcpkg" >> "$GITHUB_ENV"
+
+      - name: Configure CMake (Android)
+        run: |
+          mkdir -p logs
+          cmake --preset ${{ env.PRESET }} 2>&1 | tee logs/configure_android.log
+
+      - name: Build z_generals (libmain.so) + DXVK d3d8/d3d9
+        run: |
+          mkdir -p logs
+          cmake --build build/${{ env.PRESET }} --target z_generals dxvk_d3d8_install 2>&1 | tee logs/build_android.log
+
+      - name: Verify artifacts
+        run: |
+          set -euo pipefail
+          READELF="$(ls "${ANDROID_NDK_HOME}"/toolchains/llvm/prebuilt/*/bin/llvm-readelf | head -1)"
+          GAME_LIB="$(find build/${{ env.PRESET }} -name libmain.so -not -path '*/_deps/*' | head -1)"
+          if [ -z "$GAME_LIB" ]; then echo "::error::libmain.so not found"; exit 1; fi
+          "$READELF" -h "$GAME_LIB" | grep -q AArch64 || { echo "::error::libmain.so is not AArch64"; exit 1; }
+          for lib in libdxvk_d3d8.so libdxvk_d3d9.so; do
+            [ -f "build/${{ env.PRESET }}/$lib" ] || { echo "::error::$lib missing"; exit 1; }
+          done
+          strings "build/${{ env.PRESET }}/libdxvk_d3d9.so" | grep -q Sdl3WsiDriver || {
+            echo "::error::libdxvk_d3d9.so built without the SDL3 WSI (silent fallback)"; exit 1; }
+          echo "Artifacts verified: AArch64 libmain.so + DXVK with SDL3 WSI"
+
+      - name: Set artifact version
+        id: artifact
+        run: |
+          # versionCode must strictly increase for a tapped-APK update install
+          # to be accepted (adb install -r doesn't care, but that's not how
+          # a phone user updates a sideloaded app); the workflow run number is
+          # monotonic per-repository, which is good enough for that purpose.
+          echo "version_code=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          echo "apk_name=GeneralsXZH-android-${{ github.run_number }}.apk" >> "$GITHUB_OUTPUT"
+
+      - name: Package APK
+        env:
+          # scripts/build/android/package-android-zh.sh uses these to stage
+          # jniLibs/, the SDL3 Java glue, and fonts, then invokes Gradle with
+          # this versionCode. Same fixed debug.keystore every run (committed
+          # in android/app/) is what makes consecutive CI builds installable
+          # as updates over each other rather than requiring an uninstall.
+          GX_ANDROID_STAGING: ${{ github.workspace }}/android-staging
+          GX_ANDROID_VERSION_CODE: ${{ steps.artifact.outputs.version_code }}
+        run: |
+          ./scripts/build/android/package-android-zh.sh
+
+      - name: Locate APK
+        id: locate
+        run: |
+          APK="android/app/build/outputs/apk/debug/app-debug.apk"
+          if [ ! -f "$APK" ]; then echo "::error::APK not found at $APK"; exit 1; fi
+          cp "$APK" "${{ steps.artifact.outputs.apk_name }}"
+          echo "path=${{ steps.artifact.outputs.apk_name }}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.artifact.outputs.apk_name }}
+          path: ${{ steps.locate.outputs.path }}
+          retention-days: 30
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-build-logs-${{ github.run_number }}
+          path: logs/
+          retention-days: 14
+          if-no-files-found: ignore

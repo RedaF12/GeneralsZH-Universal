@@ -111,10 +111,19 @@ iteration.
 ## Quick start — Android (work in progress)
 
 Same engine, one translation layer fewer: DirectX 8 → DXVK → **Vulkan native**
-(no MoltenVK). Needs the Android NDK (r26+), vcpkg, meson/ninja, and a device
-whose GPU driver speaks **Vulkan 1.3** (Snapdragon with Adreno 7xx/8xx: yes;
-older Mali like the G76: no — see the doc). Status: implemented end-to-end,
-first on-device bring-up pending.
+(no MoltenVK). Needs a device whose GPU driver speaks **Vulkan 1.3**
+(Snapdragon with Adreno 7xx/8xx: yes; older Mali like the G76: no — see the
+doc). Status: implemented end-to-end, first on-device bring-up pending.
+
+**No local toolchain needed** — push to a `claude/**` branch (or run it
+manually) and GitHub Actions builds the APK: **Actions tab → Build Android →
+Run workflow**. Every CI build is signed with the same committed debug key and
+gets an increasing versionCode, so you can install a newer run **over** an
+older one without uninstalling. (On a fork, enable Actions once: Actions tab →
+"I understand my workflows, go ahead and enable them".) Download the APK
+artifact from the run and `adb install` it.
+
+Building locally instead needs the Android NDK (r26+), vcpkg, meson/ninja:
 
 ```sh
 cd GeneralsX
