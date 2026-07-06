@@ -245,6 +245,152 @@ Cflags: -I\${includedir}
   message(STATUS "DXVK source directory: ${DXVK_SOURCE_DIR}")
   message(STATUS "DXVK d3d8 library:     ${DXVK_D3D8_LIB}")
 
+elseif(ANDROID)
+  # Android: Build DXVK 2.6 from source using Meson + the NDK clang cross toolchain.
+  # GeneralsX @build Android port 06/07/2026
+  # Unlike iOS there is no MoltenVK layer: Android speaks Vulkan natively, so the
+  # chain is D3D8 -> DXVK -> Vulkan -> vendor driver (Adreno/Mali). DXVK's loader
+  # already tries "libvulkan.so" first on non-Apple Unix, which is exactly the
+  # system Vulkan loader every Vulkan-capable Android device ships.
+  find_program(MESON_EXECUTABLE meson)
+  find_program(NINJA_EXECUTABLE ninja)
+
+  if(NOT MESON_EXECUTABLE)
+    message(FATAL_ERROR "DXVK Android build requires meson (pip install meson / brew install meson / apt install meson)")
+  endif()
+  if(NOT NINJA_EXECUTABLE)
+    message(FATAL_ERROR "DXVK Android build requires ninja")
+  endif()
+
+  include(ExternalProject)
+  set(DXVK_LOCAL_FORK_DIR "${CMAKE_SOURCE_DIR}/references/fbraz3-dxvk")
+  option(SAGE_DXVK_USE_LOCAL_FORK "Build DXVK from local references/fbraz3-dxvk checkout" OFF)
+
+  if(NOT (SAGE_DXVK_USE_LOCAL_FORK AND EXISTS "${DXVK_LOCAL_FORK_DIR}/.git"))
+    # Android needs local patches (unversioned .so naming for APK packaging);
+    # a remote clone cannot receive them, and a silent fallback would produce
+    # libraries the app's linker namespace can never resolve.
+    message(FATAL_ERROR "Android DXVK requires the local fork submodule. Run: git submodule update --init references/fbraz3-dxvk")
+  endif()
+  set(DXVK_SOURCE_DIR "${DXVK_LOCAL_FORK_DIR}")
+  message(STATUS "DXVK Android build: using local fork source at ${DXVK_SOURCE_DIR}")
+
+  # Apply the Android + iOS patch set idempotently (skip when the working tree
+  # already carries a patch, fail the configure when apply fails, so an
+  # unpatched DXVK can never ship silently):
+  #  - dxvk-android.patch: unversioned .so names (APK/jniLibs cannot carry the
+  #    versioned-name + symlink layout meson emits for desktop Unix)
+  #  - dxvk-ios.patch: SDL3 WSI pixel-size fix (platform-neutral, wanted on
+  #    Android high-density displays; its Apple loader entries are compiled out)
+  foreach(DXVK_PATCH_NAME dxvk-android.patch dxvk-ios.patch)
+    execute_process(
+      COMMAND git -C "${DXVK_LOCAL_FORK_DIR}" apply --reverse --check "${CMAKE_SOURCE_DIR}/Patches/${DXVK_PATCH_NAME}"
+      RESULT_VARIABLE DXVK_PATCH_ALREADY_APPLIED
+      ERROR_QUIET)
+    if(NOT DXVK_PATCH_ALREADY_APPLIED EQUAL 0)
+      execute_process(
+        COMMAND git -C "${DXVK_LOCAL_FORK_DIR}" apply "${CMAKE_SOURCE_DIR}/Patches/${DXVK_PATCH_NAME}"
+        RESULT_VARIABLE DXVK_PATCH_RESULT)
+      if(NOT DXVK_PATCH_RESULT EQUAL 0)
+        message(FATAL_ERROR "Failed to apply Patches/${DXVK_PATCH_NAME} to references/fbraz3-dxvk — the Android DXVK build requires it.")
+      endif()
+      message(STATUS "DXVK Android: applied Patches/${DXVK_PATCH_NAME}")
+    else()
+      message(STATUS "DXVK Android: Patches/${DXVK_PATCH_NAME} already applied")
+    endif()
+  endforeach()
+
+  set(DXVK_BUILD_DIR "${CMAKE_BINARY_DIR}/_deps/dxvk-build-android")
+  set(DXVK_D3D8_LIB  "${DXVK_BUILD_DIR}/src/d3d8/libdxvk_d3d8.so")
+  set(DXVK_D3D9_LIB  "${DXVK_BUILD_DIR}/src/d3d9/libdxvk_d3d9.so")
+
+  # Locate the NDK's llvm toolchain bin dir for the meson cross file. The NDK
+  # toolchain file (chainloaded by vcpkg) sets CMAKE_ANDROID_NDK / ANDROID_NDK.
+  if(CMAKE_ANDROID_NDK)
+    set(DXVK_ANDROID_NDK "${CMAKE_ANDROID_NDK}")
+  elseif(ANDROID_NDK)
+    set(DXVK_ANDROID_NDK "${ANDROID_NDK}")
+  elseif(DEFINED ENV{ANDROID_NDK_HOME})
+    set(DXVK_ANDROID_NDK "$ENV{ANDROID_NDK_HOME}")
+  else()
+    message(FATAL_ERROR "DXVK Android build: cannot locate the NDK (CMAKE_ANDROID_NDK/ANDROID_NDK/ANDROID_NDK_HOME all unset)")
+  endif()
+  file(GLOB DXVK_NDK_TOOLCHAIN_BINS "${DXVK_ANDROID_NDK}/toolchains/llvm/prebuilt/*/bin")
+  if(NOT DXVK_NDK_TOOLCHAIN_BINS)
+    message(FATAL_ERROR "DXVK Android build: no llvm toolchain found under ${DXVK_ANDROID_NDK}/toolchains/llvm/prebuilt")
+  endif()
+  list(GET DXVK_NDK_TOOLCHAIN_BINS 0 ANDROID_TOOLCHAIN_BIN)
+
+  # API level: the NDK toolchain publishes it as CMAKE_SYSTEM_VERSION (numeric).
+  if(CMAKE_SYSTEM_VERSION MATCHES "^[0-9]+$")
+    set(ANDROID_API "${CMAKE_SYSTEM_VERSION}")
+  else()
+    set(ANDROID_API "28")
+  endif()
+  message(STATUS "Building DXVK ${DXVK_VERSION} for Android arm64-v8a (API ${ANDROID_API}) with Meson (${MESON_EXECUTABLE})")
+
+  configure_file(${CMAKE_SOURCE_DIR}/cmake/meson-arm64-android-cross.ini.in
+                 ${CMAKE_BINARY_DIR}/meson-arm64-android-cross.ini @ONLY)
+  set(DXVK_MESON_MACHINE_ARGS --cross-file ${CMAKE_BINARY_DIR}/meson-arm64-android-cross.ini)
+
+  # Generate a pkg-config file for the in-tree (FetchContent) SDL3 so meson's
+  # dependency('SDL3') resolves to it — the exact same silent-SDL2-fallback trap
+  # as on macOS applies (see above).
+  set(DXVK_SDL3_PC_DIR "${CMAKE_BINARY_DIR}/sdl3-pkgconfig")
+  file(WRITE "${DXVK_SDL3_PC_DIR}/sdl3.pc"
+"prefix=${CMAKE_BINARY_DIR}/_deps
+libdir=\${prefix}/sdl3-build
+includedir=\${prefix}/sdl3-src/include
+
+Name: sdl3
+Description: Simple DirectMedia Layer (in-tree FetchContent build)
+Version: 3.4.2
+Libs: -L\${libdir} -lSDL3
+Cflags: -I\${includedir}
+")
+  # Cross builds must not leak host libs: expose ONLY the generated sdl3.pc.
+  set(DXVK_PKG_CONFIG_ENV "PKG_CONFIG_LIBDIR=${DXVK_SDL3_PC_DIR}")
+
+  ExternalProject_Add(dxvk_android_build
+    SOURCE_DIR        ${DXVK_SOURCE_DIR}
+    BINARY_DIR        ${DXVK_BUILD_DIR}
+    DOWNLOAD_COMMAND  ""
+    UPDATE_COMMAND    ""
+    PATCH_COMMAND     ""
+    CONFIGURE_COMMAND ${CMAKE_COMMAND} -E env "${DXVK_PKG_CONFIG_ENV}" ${MESON_EXECUTABLE} setup ${DXVK_BUILD_DIR} ${DXVK_SOURCE_DIR} ${DXVK_MESON_MACHINE_ARGS} -Ddxvk_native_wsi=sdl3 --buildtype=release --reconfigure
+    BUILD_COMMAND     ${NINJA_EXECUTABLE} -C ${DXVK_BUILD_DIR} src/d3d9/libdxvk_d3d9.so src/d3d8/libdxvk_d3d8.so
+    INSTALL_COMMAND   ""
+    UPDATE_DISCONNECTED TRUE
+  )
+  # meson links the DXVK libs against the in-tree libSDL3.so (from the generated
+  # sdl3.pc); make sure it exists before the ExternalProject's build step runs.
+  if(TARGET SDL3-shared)
+    add_dependencies(dxvk_android_build SDL3-shared)
+  endif()
+
+  # Copy libdxvk_d3d8 + libdxvk_d3d9 to the build dir root, where the packaging
+  # script picks them up as jniLibs. d3d8 links d3d9 via DT_NEEDED, both ship.
+  add_custom_command(
+    OUTPUT  "${CMAKE_BINARY_DIR}/libdxvk_d3d9.so"
+            "${CMAKE_BINARY_DIR}/libdxvk_d3d8.so"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+              ${DXVK_D3D9_LIB} "${CMAKE_BINARY_DIR}/libdxvk_d3d9.so"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+              ${DXVK_D3D8_LIB} "${CMAKE_BINARY_DIR}/libdxvk_d3d8.so"
+    DEPENDS dxvk_android_build
+    COMMENT "Installing libdxvk_d3d8 + libdxvk_d3d9 to build directory"
+  )
+  add_custom_target(dxvk_d3d8_install ALL
+    DEPENDS "${CMAKE_BINARY_DIR}/libdxvk_d3d8.so"
+            "${CMAKE_BINARY_DIR}/libdxvk_d3d9.so"
+  )
+
+  # Export paths so other cmake files know where the headers are
+  set(DXVK_INCLUDE_DIR "${DXVK_SOURCE_DIR}/include/native" CACHE PATH "DXVK native headers")
+  set(dxvk_SOURCE_DIR "${DXVK_SOURCE_DIR}" CACHE PATH "DXVK source directory (Android)")
+  message(STATUS "DXVK source directory: ${DXVK_SOURCE_DIR}")
+  message(STATUS "DXVK d3d8 library:     ${DXVK_D3D8_LIB}")
+
 else()
   # Linux: Fetch pre-built DXVK native binary for DirectX→Vulkan translation
   # Native 32-bit and 64-bit Linux binaries (.so)

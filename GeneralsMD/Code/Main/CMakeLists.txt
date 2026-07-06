@@ -1,9 +1,20 @@
-add_executable(z_generals WIN32)
+# GeneralsX @build Android port 06/07/2026 On Android the game is not a process
+# of its own: SDL3's Java shell (SDLActivity in android/) loads the game as a
+# shared library named libmain.so and calls its SDL_main. Everywhere else the
+# game remains a regular executable.
+if(ANDROID)
+    add_library(z_generals SHARED)
+else()
+    add_executable(z_generals WIN32)
+endif()
 
 # Use a binary name that doesn't conflict with original game.
 # GeneralsX @build BenderAI 15/02/2026 Linux branding update
 if("${CMAKE_SYSTEM}" MATCHES "Windows")
     set_target_properties(z_generals PROPERTIES OUTPUT_NAME "generalszh${RTS_BUILD_OUTPUT_SUFFIX}")
+elseif(ANDROID)
+    # SDLActivity.getLibraries() loads "main" -> libmain.so (SDL convention)
+    set_target_properties(z_generals PROPERTIES OUTPUT_NAME main)
 else()
     # GeneralsX @build BenderAI 15/02/2026 Linux branding update
     set_target_properties(z_generals PROPERTIES OUTPUT_NAME GeneralsXZH)

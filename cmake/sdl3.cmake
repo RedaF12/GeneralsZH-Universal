@@ -51,7 +51,16 @@ if(SAGE_USE_SDL3)
     # Before SDL3_image build: force PNG discovery to platform-specific libpng
     # Linux: System libpng16.so is dynamic shared library
     # macOS: Use Homebrew PNG or system framework
-    if(NOT APPLE)
+    if(CMAKE_SYSTEM_NAME STREQUAL "iOS" OR ANDROID)
+        # iOS/Android: no shared system libpng exists for the target and SDL3_image
+        # rejects a static one. Disable its libpng backend entirely — PNG decoding
+        # still works through the stb backend (and Apple ImageIO on iOS).
+        # GeneralsX @build Android port 06/07/2026 Android joins the iOS path: the
+        # NDK sysroot ships no libpng, and the generic NOT-APPLE branch below would
+        # otherwise fail find_package(PNG REQUIRED) against host system paths.
+        set(SDLIMAGE_PNG_LIBPNG OFF CACHE BOOL "No libpng on iOS/Android; stb decodes PNG" FORCE)
+        set(SDLIMAGE_PNG_SHARED OFF CACHE BOOL "No shared libpng on iOS/Android" FORCE)
+    elseif(NOT APPLE)
         # Find system shared libpng, bypassing vcpkg's static .a.
         # SDL3_image requires a shared .so but vcpkg only provides static libpng16.a.
         # NO_CMAKE_PATH + NO_CMAKE_FIND_ROOT_PATH skips all vcpkg-injected search paths,
@@ -59,12 +68,6 @@ if(SAGE_USE_SDL3)
         find_library(PNG_LIBRARY NAMES png16 png NO_CMAKE_PATH NO_CMAKE_FIND_ROOT_PATH)
         find_path(PNG_PNG_INCLUDE_DIR png.h PATH_SUFFIXES libpng16 NO_CMAKE_PATH NO_CMAKE_FIND_ROOT_PATH)
         find_package(PNG REQUIRED MODULE)
-    elseif(CMAKE_SYSTEM_NAME STREQUAL "iOS")
-        # iOS: no shared libpng exists for the target and SDL3_image rejects a static
-        # one. Disable its libpng backend entirely — PNG decoding still works through
-        # the stb and Apple ImageIO backends that SDL3_image enables on Apple platforms.
-        set(SDLIMAGE_PNG_LIBPNG OFF CACHE BOOL "No libpng on iOS; stb/ImageIO decode PNG" FORCE)
-        set(SDLIMAGE_PNG_SHARED OFF CACHE BOOL "No shared libpng on iOS" FORCE)
     else()
         # macOS: Force Homebrew's dynamic libpng, bypassing vcpkg's static .a
         # GeneralsX @build BenderAI 24/02/2026 - Phase 5 macOS port
@@ -120,7 +123,15 @@ if(SAGE_USE_SDL3)
     set(SDL3IMAGE_WEBP ON CACHE BOOL "Enable WebP support" FORCE)
     set(SDL3IMAGE_AVIF OFF CACHE BOOL "Disable AVIF (optional)" FORCE)
     set(SDL3IMAGE_XCUR ON CACHE BOOL "Enable X cursor support" FORCE)
-    
+
+    # GeneralsX @build Android port 06/07/2026 The game only decodes PNG (ANI
+    # cursors) and JPG; TIF/WEBP backends look for system libtiff/libwebp that
+    # the NDK sysroot doesn't have and would fail the cross-configure.
+    if(ANDROID)
+        set(SDL3IMAGE_TIF OFF CACHE BOOL "No libtiff in the NDK sysroot" FORCE)
+        set(SDL3IMAGE_WEBP OFF CACHE BOOL "No libwebp in the NDK sysroot" FORCE)
+    endif()
+
     FetchContent_MakeAvailable(SDL3_image)
     
     # Create unified interface library for linking
