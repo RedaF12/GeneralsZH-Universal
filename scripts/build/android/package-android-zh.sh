@@ -77,7 +77,7 @@ for rel in "${OPTIONAL_LIB_GLOBS[@]}"; do
     if [[ -n "${src}" && -f "${src}" ]]; then
         cp "${src}" "${JNILIBS}/"
     else
-        found="$(find "${BUILD_DIR}/_deps" -maxdepth 2 -name "$(basename "${rel}")" 2>/dev/null | head -1)"
+        found="$(find "${BUILD_DIR}/_deps" -maxdepth 4 -name "$(basename "${rel}")" 2>/dev/null | head -1)"
         if [[ -n "${found}" ]]; then
             cp "${found}" "${JNILIBS}/"
         else
