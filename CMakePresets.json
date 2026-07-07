@@ -278,6 +278,43 @@
             "environment": {
                 "PKG_CONFIG_PATH": ""
             }
+        },
+        {
+            "name": "android-vulkan",
+            "displayName": "Android (Vulkan + SDL3 + OpenAL) arm64-v8a Device",
+            "inherits": "default-vcpkg",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "description": "Android port: arm64-v8a build with native Vulkan for graphics (DXVK d3d8, no MoltenVK needed), SDL3 for windowing/touch, OpenAL for audio (OpenSL/AAudio backends), FFmpeg (vcpkg) for video. Requires the Android NDK (r26+); export ANDROID_NDK_HOME=<ndk dir>. The game builds as libmain.so, loaded by the SDLActivity shell in android/. RTS_GAMEMEMORY_ENABLE is OFF: the engine's custom pool allocator intercepts global operator delete process-wide, and freeing memory that OpenAL/libc++ allocated through the system allocator via that pool corrupts its bookkeeping (same class of bug the ASAN build config disables it for) -- plain malloc/free is used instead.",
+            "cacheVariables": {
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+                "VCPKG_TARGET_TRIPLET": "arm64-android",
+                "VCPKG_OVERLAY_TRIPLETS": "${sourceDir}/cmake/triplets",
+                "VCPKG_CHAINLOAD_TOOLCHAIN_FILE": "$env{ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake",
+                "ANDROID_ABI": "arm64-v8a",
+                "ANDROID_PLATFORM": "android-28",
+                "ANDROID_STL": "c++_shared",
+                "CMAKE_POSITION_INDEPENDENT_CODE": "ON",
+                "SAGE_USE_DX8": "OFF",
+                "SAGE_USE_SDL3": "ON",
+                "SAGE_USE_OPENAL": "ON",
+                "SAGE_USE_GLM": "ON",
+                "SAGE_USE_MOLTENVK": "OFF",
+                "SAGE_DXVK_USE_LOCAL_FORK": "ON",
+                "SAGE_UPDATE_CHECK": "OFF",
+                "RTS_CRASHDUMP_ENABLE": "OFF",
+                "RTS_BUILD_OPTION_FFMPEG": "ON",
+                "RTS_BUILD_OPTION_SAGE_PATCH": "OFF",
+                "RTS_BUILD_GENERALS": "OFF",
+                "RTS_BUILD_CORE_TOOLS": "OFF",
+                "RTS_BUILD_ZEROHOUR_TOOLS": "OFF",
+                "RTS_BUILD_ZEROHOUR_EXTRAS": "OFF",
+                "RTS_GAMEMEMORY_ENABLE": "OFF"
+            },
+            "environment": {
+                "PKG_CONFIG_PATH": ""
+            }
         }
     ],
     "buildPresets": [

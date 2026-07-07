@@ -108,6 +108,40 @@ Find your team id in Xcode → Settings → Accounts. Assets ship inside the app
 bundle (self-contained install); `--dev` skips the ~2.7 GB copy for fast code
 iteration.
 
+## Quick start — Android (work in progress)
+
+Same engine, one translation layer fewer: DirectX 8 → DXVK → **Vulkan native**
+(no MoltenVK). Needs a device whose GPU driver speaks **Vulkan 1.3**
+(Snapdragon with Adreno 7xx/8xx: yes; older Mali like the G76: no — see the
+doc). Status: implemented end-to-end, first on-device bring-up pending.
+
+**No local toolchain needed** — push to a `claude/**` branch (or run it
+manually) and GitHub Actions builds the APK: **Actions tab → Build Android →
+Run workflow**. Every CI build is signed with the same committed debug key and
+gets an increasing versionCode, so you can install a newer run **over** an
+older one without uninstalling. (On a fork, enable Actions once: Actions tab →
+"I understand my workflows, go ahead and enable them".) Download the APK
+artifact from the run and install it.
+
+**No adb needed either, for setup or logs**: the APK installs a second icon,
+**"GeneralsZH Setup"**, with an in-app folder picker (point it at wherever
+you copied your own game files — Downloads, an SD card, anywhere) and a log
+viewer with a Share button. See [docs/port/ANDROID_PORT.md §4](docs/port/ANDROID_PORT.md#4-game-data-and-first-run--the-in-app-setup-flow-no-adb-no-pc-needed)
+for the full first-run walkthrough.
+
+Building locally instead needs the Android NDK (r26+), vcpkg, meson/ninja:
+
+```sh
+cd GeneralsX
+git submodule update --init references/fbraz3-dxvk
+export ANDROID_NDK_HOME=~/Android/Sdk/ndk/<version>
+./scripts/build/android/build-android-zh.sh        # game -> libmain.so, DXVK -> .so, verified
+./scripts/build/android/package-android-zh.sh --install
+```
+
+**→ The full guide (device/driver matrix, storage layout, bring-up checklist):
+[docs/port/ANDROID_PORT.md](docs/port/ANDROID_PORT.md)**
+
 ## Where things are
 
 | Path | What it is |
@@ -116,7 +150,9 @@ iteration.
 | `docs/port/PORTING_PATTERNS.md` | Generalized methodology for porting classic Windows games to Apple platforms |
 | `docs/port/RELEASE_CHECKLIST.md` | Gate for public release |
 | `scripts/get-assets.sh` | Steam asset fetcher (your own copy; app 2732960) |
-| `scripts/build/macos/`, `scripts/build/ios/` | Build, deploy, packaging pipelines |
+| [`docs/port/ANDROID_PORT.md`](docs/port/ANDROID_PORT.md) | The Android port: architecture, device/driver matrix, build + bring-up guide |
+| `scripts/build/macos/`, `scripts/build/ios/`, `scripts/build/android/` | Build, deploy, packaging pipelines |
+| `android/` | Gradle shell app (SDLActivity) that packages `libmain.so` + DXVK into an APK |
 | `ios/` | XcodeGen signing-stub project + `ios/config/` (staged Options.ini, dxvk.conf) |
 | `Patches/dxvk-ios.patch` | DXVK changes the iOS d3d8/d3d9 dylibs are built from (applied via the local-fork build) |
 

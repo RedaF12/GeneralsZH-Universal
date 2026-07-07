@@ -14,6 +14,11 @@
 	path = references/fbraz3-dxvk
 	url = https://github.com/fbraz3/dxvk.git
 	branch = generalsx-macos-v2.6
+	# The build dirties this checkout BY DESIGN: cmake/dx8.cmake applies
+	# Patches/dxvk-{ios,android}.patch at configure time (idempotently), so a
+	# configured tree always shows modified content. Ignore it in status --
+	# the pinned gitlink is still tracked and a re-pin still shows up.
+	ignore = dirty
 [submodule "GeneralsReplays"]
 	path = GeneralsReplays
 	url = https://github.com/fbraz3/GeneralsXReplays.git

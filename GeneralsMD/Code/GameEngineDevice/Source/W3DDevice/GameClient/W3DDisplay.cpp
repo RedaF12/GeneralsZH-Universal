@@ -564,6 +564,14 @@ static void SDL3_ApplyWindowModeForRenderConfig(Bool windowed, Int renderWidth, 
 			fprintf(stderr, "WARNING: SDL_SetWindowFullscreen(false) failed: %s\n", SDL_GetError());
 		}
 
+		// GeneralsX @bugfix Android port 07/07/2026 Android's SDL video backend has
+		// no concept of exclusive display-mode switching (there's exactly one
+		// "mode": the current physical screen) — SDL_SetWindowFullscreenMode()
+		// always fails there with "Invalid fullscreen display mode". Desktop
+		// platforms still pin the window's fullscreen mode to the current display
+		// mode explicitly; SDL_SetWindowFullscreen(true) further down is already
+		// sufficient and correct for Android's borderless-only fullscreen.
+#if !defined(__ANDROID__)
 		SDL_DisplayID displayId = SDL_GetDisplayForWindow(TheSDL3Window);
 		const SDL_DisplayMode* mode = SDL_GetCurrentDisplayMode(displayId);
 		if (mode) {
@@ -574,6 +582,7 @@ static void SDL3_ApplyWindowModeForRenderConfig(Bool windowed, Int renderWidth, 
 		else {
 			fprintf(stderr, "WARNING: SDL_GetCurrentDisplayMode failed for fullscreen transition\n");
 		}
+#endif
 	}
 	else {
 		if (!SDL_SetWindowSize(TheSDL3Window, renderWidth, renderHeight)) {

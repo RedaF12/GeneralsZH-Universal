@@ -315,9 +315,26 @@ static void Resolve_Present_BackBuffer_Size(int gameW, int gameH, bool isWindowe
 		int windowH = gameH;
 		float density = 1.0f;
 		if (DX8Wrapper::GetWindowSize(windowW, windowH, density)) {
-			outW = (UINT)windowW;
-			outH = (UINT)windowH;
-			return;
+			// GeneralsX @bugfix Android port 07/07/2026 A live re-query can land mid
+			// screen-rotation (observed on a real device: Setup -> Launch Game
+			// transitions between two landscape-locked activities, but a stale
+			// SDL window-size cache still briefly reported a transposed, portrait
+			// shape here) and hand back width/height swapped from what the game
+			// actually requested. gameW/gameH are already known-good landscape
+			// values resolved earlier at startup from this same query once
+			// orientation had settled; if the live query's orientation now
+			// disagrees with that known-good one, trust the known-good value
+			// instead of one caught mid-flight.
+			bool gameIsLandscape = gameW > gameH;
+			bool windowIsLandscape = windowW > windowH;
+			if (gameIsLandscape == windowIsLandscape) {
+				outW = (UINT)windowW;
+				outH = (UINT)windowH;
+				return;
+			}
+			fprintf(stderr, "WARNING: Resolve_Present_BackBuffer_Size: window size %dx%d "
+				"disagrees with game orientation %dx%d — ignoring (likely caught mid-rotation)\n",
+				windowW, windowH, gameW, gameH);
 		}
 	}
 #endif
@@ -1324,8 +1341,20 @@ bool DX8Wrapper::Set_Render_Device(int dev, int width, int height, int bits, int
 	// DXVK's SDL3 WSI calls SDL_SetWindowPosition during fullscreen entry which Wayland rejects.
 	// SDL3 native fullscreen is applied separately after device creation (see W3DDisplay::init).
 	_PresentParameters.Windowed = TRUE;
+	// GeneralsX @bugfix Android port 07/07/2026 The format-selection branch below keys off
+	// the raw `IsWindowed` game setting (default OFF — the game requests fullscreen), which
+	// on Windows matches _PresentParameters.Windowed but on non-Windows platforms is now
+	// forced TRUE above and out of sync with it. Left as `IsWindowed`, a fresh install
+	// (fullscreen default, no Options.ini yet) takes the else-branch's
+	// Find_Color_And_Z_Mode() path below, which has no real adapter-enumeration backing
+	// under DXVK-native on Android and returns D3DFMT_UNKNOWN — CreateDevice then fails
+	// with D3DERR_NOTAVAILABLE and the game never gets past its first frame. Mirror the
+	// _PresentParameters.Windowed forcing here so format selection agrees with what's
+	// actually being requested from the device.
+	const bool useWindowedFormatPath = true;
 	#else
 	_PresentParameters.Windowed = IsWindowed;
+	const bool useWindowedFormatPath = IsWindowed;
 	#endif
 
 	_PresentParameters.EnableAutoDepthStencil = TRUE;				// Driver will attempt to match Z-buffer depth
@@ -1339,13 +1368,24 @@ bool DX8Wrapper::Set_Render_Device(int dev, int width, int height, int bits, int
 	** - if in windowed mode, the backbuffer must use the current display format.
 	** - the depth buffer must use
 	*/
-	if (IsWindowed) {
+	if (useWindowedFormatPath) {
 
 		D3DDISPLAYMODE desktop_mode;
 		::ZeroMemory(&desktop_mode, sizeof(D3DDISPLAYMODE));
 		D3DInterface->GetAdapterDisplayMode( CurRenderDevice, &desktop_mode );
 
 		DisplayFormat=_PresentParameters.BackBufferFormat = desktop_mode.Format;
+
+		#ifndef _WIN32
+		// GeneralsX @bugfix Android port 07/07/2026 DXVK-native's GetAdapterDisplayMode has no
+		// real desktop mode to report and returns D3DFMT_UNKNOWN here (confirmed: this is what
+		// stopped device creation on Android). Windows keeps the strict below-switch bail-out
+		// unchanged; non-Windows falls back to the universally-supported 32-bit format instead
+		// of failing Set_Render_Device outright.
+		if (_PresentParameters.BackBufferFormat == D3DFMT_UNKNOWN) {
+			DisplayFormat = _PresentParameters.BackBufferFormat = D3DFMT_X8R8G8B8;
+		}
+		#endif
 
 		// In windowed mode, define the bitdepth from desktop mode (as it can't be changed)
 		switch (_PresentParameters.BackBufferFormat) {

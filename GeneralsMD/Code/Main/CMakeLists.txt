@@ -1,9 +1,20 @@
-add_executable(z_generals WIN32)
+# GeneralsX @build Android port 06/07/2026 On Android the game is not a process
+# of its own: SDL3's Java shell (SDLActivity in android/) loads the game as a
+# shared library named libmain.so and calls its SDL_main. Everywhere else the
+# game remains a regular executable.
+if(ANDROID)
+    add_library(z_generals SHARED)
+else()
+    add_executable(z_generals WIN32)
+endif()
 
 # Use a binary name that doesn't conflict with original game.
 # GeneralsX @build BenderAI 15/02/2026 Linux branding update
 if("${CMAKE_SYSTEM}" MATCHES "Windows")
     set_target_properties(z_generals PROPERTIES OUTPUT_NAME "generalszh${RTS_BUILD_OUTPUT_SUFFIX}")
+elseif(ANDROID)
+    # SDLActivity.getLibraries() loads "main" -> libmain.so (SDL convention)
+    set_target_properties(z_generals PROPERTIES OUTPUT_NAME main)
 else()
     # GeneralsX @build BenderAI 15/02/2026 Linux branding update
     set_target_properties(z_generals PROPERTIES OUTPUT_NAME GeneralsXZH)
@@ -76,6 +87,10 @@ target_sources(z_generals PRIVATE
     $<$<NOT:$<BOOL:${WIN32}>>:SDL3Main.cpp>
     # Linux stubs for P2-P3 platform functions (P2-P3 - TheSuperHackers @build 13/02/2026 BenderAI Session 37)
     $<$<NOT:$<BOOL:${WIN32}>>:LinuxStubs.cpp>
+    # GeneralsX @build Android port 07/07/2026 Installs as soon as libmain.so is
+    # dlopen'd (ELF constructor), before any engine code — captures crashes that
+    # happen before SDL3Main.cpp's own logging is ready.
+    $<$<BOOL:${ANDROID}>:AndroidCrashHandler.cpp>
 )
 
 # RC files optional for MinGW builds

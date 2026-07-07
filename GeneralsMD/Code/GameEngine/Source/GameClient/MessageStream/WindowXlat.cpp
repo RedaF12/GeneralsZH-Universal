@@ -241,6 +241,18 @@ GameMessageDisposition WindowTranslator::translateGameMessage(const GameMessage 
 			if( TheWindowManager )
 				returnCode = TheWindowManager->winProcessMouseEvent( gwm, &mousePos, nullptr );
 
+			// GeneralsX @feature Android port 07/07/2026 Touch devices have no ESC key
+			// to skip cutscenes with; treat a tap (left-button-down, what a touch tap
+			// synthesizes) the same way ESC is treated for keyboard input above.
+			if( returnCode != WIN_INPUT_USED
+				&& msg->getType() == GameMessage::MSG_RAW_MOUSE_LEFT_BUTTON_DOWN
+				&& TheDisplay->isMoviePlaying()
+				&& TheGlobalData->m_allowExitOutOfMovies == TRUE )
+			{
+				TheDisplay->stopMovie();
+				returnCode = WIN_INPUT_USED;
+			}
+
 			if( TheShell && TheShell->isShellActive() )
 				returnCode = WIN_INPUT_USED;
 

@@ -58,5 +58,16 @@ void* CreateThread(void *lpSecure, size_t dwStackSize, start_routine lpStartAddr
 
 int TerminateThread(void *hThread, unsigned long dwExitCode)
 {
+#if defined(__ANDROID__)
+	// GeneralsX @build Android port 07/07/2026 bionic deliberately ships no
+	// pthread_cancel. Every caller uses TerminateThread as a last-resort kill
+	// of a stuck helper thread (GameSpy async DNS, the minidumper watchdog,
+	// WWLib's thread teardown fallback) right before shutdown; failing the
+	// call and letting the thread run out on its own is the safe translation.
+	(void)hThread;
+	(void)dwExitCode;
+	return 0;
+#else
 	return pthread_cancel((pthread_t)hThread);
+#endif
 }
