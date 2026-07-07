@@ -35,3 +35,22 @@ index 8f725104..3e6bd9d5 100644
 
    wrc           = find_program('touch')
    wrc_generator = generator(wrc, output : [ '@BASENAME@_ignored.h' ], arguments : [ '@OUTPUT@' ] )
+diff --git a/src/wsi/sdl3/wsi_platform_sdl3.cpp b/src/wsi/sdl3/wsi_platform_sdl3.cpp
+index 9975cda..f29ca37 100644
+--- a/src/wsi/sdl3/wsi_platform_sdl3.cpp
++++ b/src/wsi/sdl3/wsi_platform_sdl3.cpp
+@@ -15,6 +15,14 @@ namespace dxvk::wsi {
+         "SDL3.dll"
+ #elif defined(__APPLE__)
+         "libSDL3.0.dylib"
++#elif defined(__ANDROID__)
++        // GeneralsX @bugfix Android port 07/07/2026 Android's linker has no
++        // SONAME symlink resolution like glibc's ld.so — an installed APK's
++        // lib/<abi>/ only ever contains the exact filename Gradle packaged
++        // (libSDL3.so, no ".0" suffix), so dlopen("libSDL3.so.0") always
++        // fails here even though the very same library loads fine via
++        // System.loadLibrary("SDL3") elsewhere in the same process.
++        "libSDL3.so"
+ #else
+         "libSDL3.so.0"
+ #endif
