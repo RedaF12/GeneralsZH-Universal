@@ -207,6 +207,34 @@ public class SetupActivity extends Activity {
         } catch (java.io.IOException e) {
             Toast.makeText(this, "Could not save folder marker: " + e.getMessage(), Toast.LENGTH_LONG).show();
         }
+        copyDxvkConfIfMissing(path);
+    }
+
+    // GeneralsX @bugfix Android port 07/07/2026 DXVK reads dxvk.conf from the
+    // engine's CWD, which is now whatever folder the user picked here — not
+    // the external-files-dir path package-android-zh.sh originally extracted
+    // the APK's bundled dxvk.conf into. Without this, a custom game folder
+    // silently loses the packaged tuning (16x anisotropic filtering) even
+    // though the env-var log level override still applies regardless of CWD.
+    private void copyDxvkConfIfMissing(String gameFolderPath) {
+        File dest = new File(gameFolderPath, "dxvk.conf");
+        if (dest.exists()) {
+            return;
+        }
+        File bundled = new File(getExternalFilesDir(null), "dxvk.conf");
+        if (!bundled.exists()) {
+            return;
+        }
+        try (java.io.InputStream in = new java.io.FileInputStream(bundled);
+             java.io.OutputStream out = new java.io.FileOutputStream(dest)) {
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = in.read(buf)) > 0) {
+                out.write(buf, 0, n);
+            }
+        } catch (java.io.IOException e) {
+            // Not fatal: DXVK falls back to its own defaults without a config file.
+        }
     }
 
     private void onClearGameFolder() {

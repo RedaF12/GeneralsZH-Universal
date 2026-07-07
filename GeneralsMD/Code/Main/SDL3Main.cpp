@@ -458,10 +458,16 @@ int main(int argc, char* argv[])
 	//                  never user-visible, holds Options.ini + saves + maps cache)
 	//   DXVK cache -> <cache dir> (purgeable by the OS under storage pressure)
 	{
-		// Quiet DXVK's per-call d3d8 warnings at the source (same rationale as
-		// iOS: hundreds of MB per long session). dxvk.conf sets logLevel=none
-		// too; the env covers modules that read it before the config loads.
-		setenv("DXVK_LOG_LEVEL", "none", 0);
+		// GeneralsX @bugfix Android port 07/07/2026 "error", not "none": a
+		// real-device run reached Direct3DCreate8() and threw with no
+		// information beyond "unknown exception" — DXVK's own error log is
+		// exactly what would explain a failure that deep (unsupported
+		// instance/device extension, missing Vulkan feature, etc.) and
+		// "none" was silencing it. "error" still excludes the per-frame
+		// WARN-level render-state spam the iOS port's "none" setting was
+		// actually chasing (hundreds of MB/session); only genuine failures
+		// are rare enough not to reproduce that problem.
+		setenv("DXVK_LOG_LEVEL", "error", 0);
 
 		const char *internalPath = SDL_GetAndroidInternalStoragePath();
 		const char *externalPath = SDL_GetAndroidExternalStoragePath();
