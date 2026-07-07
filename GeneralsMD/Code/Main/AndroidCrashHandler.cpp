@@ -47,8 +47,87 @@
 #include <string.h>
 #include <stdio.h>
 #include <time.h>
+#include <stdint.h>
+#if defined(__aarch64__)
+#include <ucontext.h>
+#endif
 
 namespace {
+
+// GeneralsX @bugfix Android port 07/07/2026 A bare signal+fault_addr line
+// wasn't enough to diagnose a crash reported as happening "on pressing a
+// button in-game": two separate sessions hit the exact same fault_addr
+// (0x2000000001, a fixed non-null garbage-looking value — not a plain
+// null-deref), which pointed at a deterministic bug but gave no way to
+// find WHERE. Resolve the crashing PC to "library+file-offset" by walking
+// /proc/self/maps with raw syscalls only (open/read/close are POSIX
+// async-signal-safe; no malloc, no strtok/libc line-buffering). The
+// resulting offset is directly usable with `addr2line -e libmain.so
+// <offset>` against the same CI build's unstripped .so.
+int hexDigitValue(char c) {
+	if (c >= '0' && c <= '9') return c - '0';
+	if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+	if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+	return 0;
+}
+
+static char s_mapsBuf[65536];
+
+bool findLibraryForAddress(uintptr_t pc, char *outName, size_t outNameLen, uintptr_t *outOffset) {
+	int fd = open("/proc/self/maps", O_RDONLY);
+	if (fd < 0) {
+		return false;
+	}
+	ssize_t total = 0;
+	ssize_t n;
+	while (total < (ssize_t)sizeof(s_mapsBuf) - 1 &&
+	       (n = read(fd, s_mapsBuf + total, sizeof(s_mapsBuf) - 1 - (size_t)total)) > 0) {
+		total += n;
+	}
+	close(fd);
+	if (total <= 0) {
+		return false;
+	}
+	s_mapsBuf[total] = '\0';
+
+	char *line = s_mapsBuf;
+	char *bufEnd = s_mapsBuf + total;
+	while (line < bufEnd) {
+		char *lineEnd = line;
+		while (lineEnd < bufEnd && *lineEnd != '\n') {
+			lineEnd++;
+		}
+
+		uintptr_t start = 0, end = 0, fileOffset = 0;
+		char *p = line;
+		while (p < lineEnd && *p != '-') { start = (start << 4) | (uintptr_t)hexDigitValue(*p); p++; }
+		if (p < lineEnd) p++; // skip '-'
+		while (p < lineEnd && *p != ' ') { end = (end << 4) | (uintptr_t)hexDigitValue(*p); p++; }
+		while (p < lineEnd && *p == ' ') p++;
+		while (p < lineEnd && *p != ' ') p++; // skip perms field
+		while (p < lineEnd && *p == ' ') p++;
+		while (p < lineEnd && *p != ' ') { fileOffset = (fileOffset << 4) | (uintptr_t)hexDigitValue(*p); p++; }
+
+		if (pc >= start && pc < end) {
+			char *pathStart = lineEnd;
+			while (pathStart > line && *(pathStart - 1) != ' ') {
+				pathStart--;
+			}
+			size_t pathLen = (size_t)(lineEnd - pathStart);
+			if (pathLen > 0 && pathLen < outNameLen) {
+				memcpy(outName, pathStart, pathLen);
+				outName[pathLen] = '\0';
+			} else {
+				outName[0] = '\0';
+			}
+			*outOffset = (pc - start) + fileOffset;
+			return true;
+		}
+
+		line = lineEnd + 1;
+	}
+	return false;
+}
 
 // GeneralsX @bugfix Android port 07/07/2026 Context.getFilesDir() (what
 // SDL_GetAndroidInternalStoragePath() and this path both need to agree with)
@@ -104,6 +183,27 @@ void androidCrashHandler(int sig, siginfo_t *info, void *ucontext) {
 	if (len > 0) {
 		appendCrashLog(buf, (size_t)len < sizeof(buf) ? (size_t)len : sizeof(buf) - 1);
 	}
+
+#if defined(__aarch64__)
+	uintptr_t pc = (ucontext != nullptr) ? (uintptr_t)((ucontext_t *)ucontext)->uc_mcontext.pc : 0;
+	if (pc != 0) {
+		char libName[192];
+		uintptr_t libOffset = 0;
+		if (findLibraryForAddress(pc, libName, sizeof(libName), &libOffset)) {
+			int pcLen = snprintf(buf, sizeof(buf),
+				"crash PC=%p is in %s+0x%lx (symbolize with: addr2line -f -C -e <that .so> 0x%lx)\n",
+				(void *)pc, libName, (unsigned long)libOffset, (unsigned long)libOffset);
+			if (pcLen > 0) {
+				appendCrashLog(buf, (size_t)pcLen < sizeof(buf) ? (size_t)pcLen : sizeof(buf) - 1);
+			}
+		} else {
+			int pcLen = snprintf(buf, sizeof(buf), "crash PC=%p (no matching /proc/self/maps entry)\n", (void *)pc);
+			if (pcLen > 0) {
+				appendCrashLog(buf, (size_t)pcLen < sizeof(buf) ? (size_t)pcLen : sizeof(buf) - 1);
+			}
+		}
+	}
+#endif
 
 	// Chain to whatever handler was previously installed (Android's own
 	// debuggerd hook in the common case) so the system tombstone and the
