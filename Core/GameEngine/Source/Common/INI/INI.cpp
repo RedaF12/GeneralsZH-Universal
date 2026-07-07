@@ -1666,7 +1666,9 @@ Type scanType(std::string_view token)
         if constexpr (std::is_floating_point_v<Type>)
         {
                 // GeneralsX @bugfix BenderAI 07/04/2026 Apple SDKs in our deployment target do not expose std::from_chars for floats.
-                #if defined(__APPLE__)
+                // GeneralsX @build Android port 07/07/2026 Same for the NDK's libc++: floating-point
+                // std::from_chars is explicitly deleted there, so Android takes the strtod path too.
+                #if defined(__APPLE__) || defined(__ANDROID__)
                 const std::string tokenString(token);
                 char *end = nullptr;
                 const double result = std::strtod(tokenString.c_str(), &end);

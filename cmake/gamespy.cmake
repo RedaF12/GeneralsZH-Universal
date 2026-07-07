@@ -14,6 +14,9 @@ FetchContent_MakeAvailable(gamespy)
 # last-resort kill used at shutdown). Rewrite the call to a successful no-op
 # at the preprocessor level — the SDK is a pinned remote FetchContent, so a
 # source patch would need a fork for one line.
+# NOTE: must be a raw compile OPTION, not target_compile_definitions --
+# CMake silently drops function-style macros from COMPILE_DEFINITIONS
+# (run #8 showed the flag missing from the gscommon compile line).
 if(ANDROID AND TARGET gscommon)
-    target_compile_definitions(gscommon PRIVATE "pthread_cancel(t)=(0)")
+    target_compile_options(gscommon PRIVATE "-Dpthread_cancel(t)=(0)")
 endif()
