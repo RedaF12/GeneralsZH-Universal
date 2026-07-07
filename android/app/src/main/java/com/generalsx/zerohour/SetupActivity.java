@@ -207,22 +207,33 @@ public class SetupActivity extends Activity {
         } catch (java.io.IOException e) {
             Toast.makeText(this, "Could not save folder marker: " + e.getMessage(), Toast.LENGTH_LONG).show();
         }
-        copyDxvkConfIfMissing(path);
+        File bundledRoot = getExternalFilesDir(null);
+        if (bundledRoot != null) {
+            copyBundledRuntimeIfMissing(bundledRoot, path);
+        }
     }
 
-    // GeneralsX @bugfix Android port 07/07/2026 DXVK reads dxvk.conf from the
-    // engine's CWD, which is now whatever folder the user picked here — not
-    // the external-files-dir path package-android-zh.sh originally extracted
-    // the APK's bundled dxvk.conf into. Without this, a custom game folder
-    // silently loses the packaged tuning (16x anisotropic filtering) even
-    // though the env-var log level override still applies regardless of CWD.
-    private void copyDxvkConfIfMissing(String gameFolderPath) {
-        File dest = new File(gameFolderPath, "dxvk.conf");
-        if (dest.exists()) {
-            return;
-        }
-        File bundled = new File(getExternalFilesDir(null), "dxvk.conf");
-        if (!bundled.exists()) {
+    // GeneralsX @bugfix Android port 07/07/2026 dxvk.conf, DefaultOptions.ini,
+    // AND the entire fonts/ directory are all read by the engine relative to
+    // its CWD (see SDL3Main.cpp and render2dsentence.cpp's
+    // Locate_Font_FontConfig, which does access("fonts/<name>.ttf", R_OK) with
+    // no absolute-path fallback on Android/iOS). CWD is now whatever folder
+    // the user picked — not the external-files-dir path package-android-zh.sh
+    // originally extracted the APK's bundled copies into. Missing fonts/
+    // specifically means EVERY W3DFont load fails ("load miss" for every
+    // single font in the log) and every button in the UI renders with no
+    // text at all — copy all three, not just dxvk.conf. Static + takes
+    // bundledRoot explicitly so GeneralsZHActivity can also call this on
+    // every launch (an already-configured install needs the fix applied
+    // retroactively, not just at folder-selection time).
+    static void copyBundledRuntimeIfMissing(File bundledRoot, String gameFolderPath) {
+        copyFileIfMissing(new File(bundledRoot, "dxvk.conf"), new File(gameFolderPath, "dxvk.conf"));
+        copyFileIfMissing(new File(bundledRoot, "DefaultOptions.ini"), new File(gameFolderPath, "DefaultOptions.ini"));
+        copyDirIfMissing(new File(bundledRoot, "fonts"), new File(gameFolderPath, "fonts"));
+    }
+
+    private static void copyFileIfMissing(File bundled, File dest) {
+        if (dest.exists() || !bundled.exists()) {
             return;
         }
         try (java.io.InputStream in = new java.io.FileInputStream(bundled);
@@ -233,7 +244,23 @@ public class SetupActivity extends Activity {
                 out.write(buf, 0, n);
             }
         } catch (java.io.IOException e) {
-            // Not fatal: DXVK falls back to its own defaults without a config file.
+            // Not fatal: caller falls back to its own defaults without this file.
+        }
+    }
+
+    private static void copyDirIfMissing(File bundledDir, File destDir) {
+        if (destDir.exists() || !bundledDir.isDirectory()) {
+            return;
+        }
+        if (!destDir.mkdirs()) {
+            return;
+        }
+        File[] children = bundledDir.listFiles();
+        if (children == null) {
+            return;
+        }
+        for (File child : children) {
+            copyFileIfMissing(child, new File(destDir, child.getName()));
         }
     }
 

@@ -688,6 +688,25 @@ int main(int argc, char* argv[])
 					break;
 				}
 			}
+#if defined(__ANDROID__)
+			// GeneralsX @bugfix Android port 07/07/2026 Even with a plain (non-sensor)
+			// "landscape" manifest lock, WindowManager can take a handful of frames to
+			// actually apply it to a freshly created Activity's window — especially
+			// across the singleInstance task switch from SetupActivity. A single
+			// snapshot right after SDL_CreateWindow can still catch a stale portrait
+			// size, which then bakes a wrong -xres/-yres for the whole session
+			// (confirmed on a real device: the very first screen after Setup rendered
+			// pillarboxed into a portrait window while a later screen in the same
+			// session was already correctly landscape). Poll briefly for the window
+			// to actually report landscape before trusting its size.
+			for (int attempt = 0; attempt < 20; ++attempt) {
+				int w = 0, h = 0;
+				SDL_GetWindowSizeInPixels(TheSDL3Window, &w, &h);
+				if (w > h) break;
+				SDL_PumpEvents();
+				SDL_Delay(50);
+			}
+#endif
 			// Use the pixel size of the high-density drawable: the game renders
 			// 1:1 into the native-resolution swapchain, and fonts/UI rescale via
 			// the engine's resolution-aware font scaling (GlobalLanguage).

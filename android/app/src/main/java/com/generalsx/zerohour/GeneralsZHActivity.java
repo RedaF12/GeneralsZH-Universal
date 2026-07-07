@@ -80,6 +80,19 @@ public class GeneralsZHActivity extends SDLActivity {
             return;
         }
 
+        // GeneralsX @bugfix Android port 07/07/2026 Apply the fonts/dxvk.conf/
+        // DefaultOptions.ini copy-if-missing fix retroactively on every launch,
+        // not just when the folder is freshly picked in Setup — an install that
+        // already had a custom path saved before this fix shipped would
+        // otherwise keep missing fonts/ forever (every button renders with no
+        // text; see SetupActivity.copyBundledRuntimeIfMissing for why).
+        if (haveCustomPath) {
+            File bundledRoot = getExternalFilesDir(null);
+            if (bundledRoot != null) {
+                SetupActivity.copyBundledRuntimeIfMissing(bundledRoot, gamePath);
+            }
+        }
+
         super.onCreate(savedInstanceState);
     }
 
