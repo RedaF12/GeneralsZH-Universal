@@ -183,9 +183,9 @@ void OpenALAudioManager::audioDebugDisplay(DebugDisplayInterface* dd, void*, FIL
 		dd->printf("Speech: %s    ", (isOn(AudioAffect_Speech) ? "Yes" : "No"));
 		dd->printf("Music: %s\n", (isOn(AudioAffect_Music) ? "Yes" : "No"));
 		dd->printf("Channels Available: ");
-		dd->printf("%d Sounds    ", m_sound->getAvailableSamples());
+		dd->printf("%u Sounds    ", getNumAvailable2DSamples());
 
-		dd->printf("%d 3D Sounds\n", m_sound->getAvailable3DSamples());
+		dd->printf("%u 3D Sounds\n", getNumAvailable3DSamples());
 		dd->printf("Volume: ");
 		dd->printf("Sound: %d    ", REAL_TO_INT(m_soundVolume * 100.0f));
 		dd->printf("3DSound: %d    ", REAL_TO_INT(m_sound3DVolume * 100.0f));
@@ -214,8 +214,8 @@ void OpenALAudioManager::audioDebugDisplay(DebugDisplayInterface* dd, void*, FIL
 		fprintf(fp, "Speech: %s    ", (isOn(AudioAffect_Speech) ? "Yes" : "No"));
 		fprintf(fp, "Music: %s\n", (isOn(AudioAffect_Music) ? "Yes" : "No"));
 		fprintf(fp, "Channels Available: ");
-		fprintf(fp, "%d Sounds    ", m_sound->getAvailableSamples());
-		fprintf(fp, "%d 3D Sounds\n", m_sound->getAvailable3DSamples());
+		fprintf(fp, "%u Sounds    ", getNumAvailable2DSamples());
+		fprintf(fp, "%u 3D Sounds\n", getNumAvailable3DSamples());
 		fprintf(fp, "Volume: ");
 		fprintf(fp, "Sound: %d    ", REAL_TO_INT(m_soundVolume * 100.0f));
 		fprintf(fp, "3DSound: %d    ", REAL_TO_INT(m_sound3DVolume * 100.0f));
@@ -921,7 +921,6 @@ void OpenALAudioManager::playAudioEvent(AudioEventRTS* event)
 
 			if (source) {
 				audio->m_bufferHandle = playSample3D(event, audio);
-				m_sound->notifyOf3DSampleStart();
 			}
 
 			if (!audio->m_bufferHandle)
@@ -981,7 +980,6 @@ void OpenALAudioManager::playAudioEvent(AudioEventRTS* event)
 
 			if (source) {
 				audio->m_bufferHandle = playSample(event, audio);
-				m_sound->notifyOf2DSampleStart();
 			}
 
 			if (!audio->m_bufferHandle) {
@@ -1209,20 +1207,13 @@ void OpenALAudioManager::releaseOpenALHandles(PlayingAudio* release)
 //-------------------------------------------------------------------------------------------------
 void OpenALAudioManager::releasePlayingAudio(PlayingAudio* release)
 {
-	// GeneralsX @bugfix BenderAI 11/03/2026 - guard against null getAudioEventInfo() return
-	const AudioEventInfo* releaseInfo = (release->m_audioEventRTS ? release->m_audioEventRTS->getAudioEventInfo() : nullptr);
-	if (releaseInfo && releaseInfo->m_soundType == AT_SoundEffect) {
-		if (release->m_type == PAT_Sample) {
-			if (release->m_source) {
-				m_sound->notifyOf2DSampleCompletion();
-			}
-		}
-		else {
-			if (release->m_source) {
-				m_sound->notifyOf3DSampleCompletion();
-			}
-		}
-	}
+	// GeneralsX @bugfix Android port 10/07/2026 The notifyOf2DSampleCompletion()/
+	// notifyOf3DSampleCompletion() bookkeeping this used to call (with a null
+	// getAudioEventInfo() guard from BenderAI 11/03/2026) was removed from
+	// SoundManager upstream (81fffb3, "Simplify available audio samples
+	// management") -- getNumAvailable2DSamples()/3DSamples() now derive
+	// availability directly from m_playingSounds/m_playing3DSounds instead of
+	// a separately-tracked counter, so no completion notification is needed.
 	releaseOpenALHandles(release);	// forces stop of this audio
 	closeBuffer(release->m_bufferHandle);
 	if (release->m_cleanupAudioEventRTS) {
