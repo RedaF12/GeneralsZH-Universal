@@ -106,11 +106,12 @@ void refreshIgnoreList();
 // (NextGenMP_defines.h) also declares showNotificationBox with a 3rd,
 // defaulted bPlaySound param -- this used to be a 2-arg-only overload here,
 // which made every 2-arg call in the engine genuinely ambiguous (could bind
-// either the local 2-arg function or the 3-arg one via its default). Adding
-// the same optional param here instead of removing NextGenMP_defines.h's
-// declaration keeps GeneralsOnline's own explicit 3-arg call sites working
-// too (OnlineServices_SocialInterface.cpp etc).
-void showNotificationBox( AsciiString nick, UnicodeString message, bool bPlaySound = true);
+// either the local 2-arg function or the 3-arg one via its default). Matching
+// the arity here (no default of our own -- NextGenMP_defines.h's declaration
+// is already visible in this translation unit and already provides one;
+// specifying it twice is a "redefinition of default argument" error) makes
+// both declarations describe the same function instead of two overloads.
+void showNotificationBox( AsciiString nick, UnicodeString message, bool bPlaySound);
 void deleteNotificationBox();
 static Bool lastNotificationWasStatus = FALSE;
 static Int numOnlineInNotification = 0;
