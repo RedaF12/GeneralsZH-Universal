@@ -207,6 +207,16 @@ UseShadowDecals = yes
 UseShadowVolumes = yes
 EOF
 fi
+
+# GeneralsOnline lobby screens (.wnd loose files) — the game only ever ships
+# .big archives via the user's own copied game data (see the header comment),
+# so these get the same copy-if-missing treatment as DefaultOptions.ini above,
+# landing at <external files dir>/Data/Window/Menus/, exactly mirroring
+# GeneralsX's own Data/Window/Menus/ convention (a loose file there overrides
+# the same-named entry inside a packed .big, standard Sage engine behavior).
+mkdir -p "${ASSETS}/Data/Window/Menus"
+cp "${PROJECT_ROOT}/GeneralsMD/Data/Window/Menus/"GeneralsOnline*.wnd "${ASSETS}/Data/Window/Menus/"
+
 echo "==> Staged APK assets:"
 find "${ASSETS}" -type f | sed "s|${ASSETS}/|    |"
 

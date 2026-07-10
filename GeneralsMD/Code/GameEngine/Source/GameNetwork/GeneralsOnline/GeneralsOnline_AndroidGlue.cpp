@@ -12,6 +12,7 @@
 #include "GameNetwork/GeneralsOnline/GeneralsOnline_AndroidGlue.h"
 #include "GameNetwork/GeneralsOnline/OnlineServices_Auth.h"
 #include "GameNetwork/GameSpyOverlay.h"
+#include "GameClient/Shell.h"
 #include <cstdlib>
 #include <string>
 
@@ -135,13 +136,13 @@ bool TryStartGeneralsOnline()
 	ClearGSMessageBoxes();
 	GSMessageBoxNoButtons(UnicodeString(L"GeneralsOnline"), UnicodeString(L"Connecting..."), false);
 
-	std::string displayName = session.displayName;
-	NGMP_OnlineServicesManager::GetInstance()->OnLogin(ELoginResult::Success, session.wsUri.c_str(), [displayName]()
+	NGMP_OnlineServicesManager::GetInstance()->OnLogin(ELoginResult::Success, session.wsUri.c_str(), []()
 		{
+			// GeneralsX @feature Android port 10/07/2026 real lobby hub screen
+			// (GeneralsOnlineHome.wnd) now exists -- replaces the old
+			// "Connected... lobby browsing isn't wired up yet" message box.
 			ClearGSMessageBoxes();
-			UnicodeString msg;
-			msg.format(UnicodeString(L"Connected to GeneralsOnline as %hs.\n\n(Lobby browsing isn't wired up in the game client yet.)"), displayName.c_str());
-			GSMessageBoxOk(UnicodeString(L"GeneralsOnline"), msg, nullptr);
+			TheShell->push("Menus/GeneralsOnlineHome.wnd");
 		});
 
 	return true;
