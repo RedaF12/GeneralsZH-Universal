@@ -891,12 +891,27 @@ void PopulatePlayerInfoWindows( AsciiString parentWindowName )
 			return;
 	}
 
-	fprintf(stderr, "DEBUG-PPIW: calling findPlayerStatsByID lookupID=%lld parentWindow=%p\n", (long long)lookupID, (void*)parentWindow);
+	// GeneralsX @bugfix Android port 11/07/2026 findPlayerStatsByID() is
+	// async (an HTTP round-trip) -- if the user backs out of this screen
+	// before it completes, the captured `parentWindow` pointer is left
+	// dangling once the screen tears down, and this lambda would walk into
+	// it. Same bug class as RefreshGameListBox's use-after-free (fixed
+	// separately in LobbyUtils.cpp): capture the stable window ID instead
+	// and re-resolve the live window inside the callback.
+	Int parentWindowID = parentWindow->winGetWindowId();
+	fprintf(stderr, "DEBUG-PPIW: calling findPlayerStatsByID lookupID=%lld parentWindowID=%d\n", (long long)lookupID, parentWindowID);
 	fflush(stderr);
 	pStatsInterface->findPlayerStatsByID(lookupID, [=](bool bSuccess, PSPlayerStats stats)
 		{
 			fprintf(stderr, "DEBUG-PPIW: lambda entry bSuccess=%d statsID=%lld\n", (int)bSuccess, (long long)stats.id);
 			fflush(stderr);
+			GameWindow *parentWindow = TheWindowManager->winGetWindowFromId(nullptr, parentWindowID);
+			if (!parentWindow)
+			{
+				fprintf(stderr, "DEBUG-PPIW: parentWindow no longer exists (screen torn down), bail\n");
+				fflush(stderr);
+				return;
+			}
 			Bool weHaveStats = bSuccess;
 
 			// if we don't have the stats from the server, see if we have cached stats
