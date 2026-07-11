@@ -45,16 +45,15 @@ void playerTemplateListBoxTooltip(GameWindow *wndListBox, WinInstanceData *instD
 
 enum GameSortType CPP_11(: Int)
 {
-	GAMESORT_ALPHA_ASCENDING = 0,
-	GAMESORT_ALPHA_DESCENDING,
-	GAMESORT_PING_ASCENDING,
-	GAMESORT_PING_DESCENDING,
+	GAMESORT_AGE_ASCENDING = 0, // was alpha
+    GAMESORT_AGE_DESCENDING,	// was alpha
+	GAMESORT_MAP_ASCENDING,		// was ping
+	GAMESORT_MAP_DESCENDING,	// was ping
 };
 
 Bool HandleSortButton( NameKeyType sortButton );
 void PopulateLobbyPlayerListbox();
 
-// GeneralsX @bugfix Android port 07/11/2026 - ported from upstream GeneralsOnline, needed by WOLLobbyMenu.cpp lobby room-type filter combo box
 enum LobbyGameModeFilter CPP_11(: Int)
 {
     LOBBY_FILTER_ALL = 0,
