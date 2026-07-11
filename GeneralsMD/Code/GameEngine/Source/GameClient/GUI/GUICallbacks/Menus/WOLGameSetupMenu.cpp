@@ -67,7 +67,10 @@
 #include "GameNetwork/GameSpy/GSConfig.h"
 
 #include "GameNetwork/GeneralsOnline/NGMP_interfaces.h"
+// GeneralsX @bugfix Android port 07/11/2026 - ws2ipdef.h is Windows-only Winsock; nothing below uses its symbols on other platforms
+#if defined(_WIN32)
 #include <ws2ipdef.h>
+#endif
 #include <format>
 #include "GameNetwork/GeneralsOnline/OnlineServices_Init.h"
 #include "GameLogic/GameLogic.h"

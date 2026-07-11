@@ -137,8 +137,9 @@ static bool LobbyChatSlowmodeAllowsSend()
 {
 	using namespace std::chrono;
 
+	// GeneralsX @bugfix Android port 07/11/2026 - libc++ on Android NDK has no std::chrono::utc_clock yet, system_clock is fine here (no leap-second precision needed)
 	int64_t nowMs =
-		duration_cast<milliseconds>(utc_clock::now().time_since_epoch()).count();
+		duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
 
 	if (nowMs < s_lobbyLastChatTimeMs)
 	{

@@ -565,7 +565,8 @@ WindowMsgHandledType PopupHostGameSystem( GameWindow *window, UnsignedInt msg, W
 				{
 					if (pos >= 0)
 					{
-						Int ladderID = (Int)GadgetComboBoxGetItemData(control, pos);
+						// GeneralsX @bugfix Android port 07/11/2026 - Cast via uintptr_t for 64-bit
+						Int ladderID = static_cast<Int>(reinterpret_cast<uintptr_t>(GadgetComboBoxGetItemData(control, pos)));
 						if (ladderID < 0)
 						{
 							// "Choose a ladder" selected - open overlay

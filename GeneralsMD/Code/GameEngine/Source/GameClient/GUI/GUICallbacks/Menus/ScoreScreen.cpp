@@ -52,6 +52,10 @@
 //-----------------------------------------------------------------------------
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
 
+// GeneralsX @bugfix Android port 07/11/2026 - PRIu64 needs <cinttypes>; ShellExecuteA fallback needs SDL_OpenURL
+#include <cinttypes>
+#include <SDL3/SDL.h>
+
 #include "Common/AudioAffect.h"
 #include "Common/AudioEventRTS.h"
 #include "Common/AudioHandleSpecialValues.h"
@@ -461,12 +465,14 @@ void ScoreScreenUpdate( WindowLayout * layout, void *userData)
 	// TODO_NGMP: Find a better way of doing this... before the user exists
 	if (NGMP_OnlineServicesManager::GetInstance() != nullptr && g_bNeedToTakeDoneEOGScreenshot)
 	{
-		int64_t currTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::utc_clock::now().time_since_epoch()).count();
+		// GeneralsX @bugfix Android port 07/11/2026 - libc++ on Android NDK has no std::chrono::utc_clock yet, system_clock is fine here (no leap-second precision needed)
+		int64_t currTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 		if (currTime - g_TimeEnterState >= 1000)
 		{
 			g_bNeedToTakeDoneEOGScreenshot = false;
 
-			NGMP_OnlineServicesManager::GetInstance()->CaptureScreenshotForProbe(EScreenshotType::SCREENSHOT_TYPE_SCORESCREEN, std::string()); // pass no URI here, wait until we have one received from server
+			// GeneralsX @bugfix Android port 07/11/2026 - our CaptureScreenshotForProbe doesn't yet support the URI-correlation param upstream added
+			NGMP_OnlineServicesManager::GetInstance()->CaptureScreenshotForProbe(EScreenshotType::SCREENSHOT_TYPE_SCORESCREEN); // pass no URI here, wait until we have one received from server
 		}
 	}
 
@@ -666,7 +672,12 @@ WindowMsgHandledType ScoreScreenSystem( GameWindow *window, UnsignedInt msg,
 #else
 								strMatchURL.format("https://www.playgenerals.online/viewmatch?match=%" PRIu64, currentMatchID);
 #endif
+								// GeneralsX @bugfix Android port 07/11/2026 - ShellExecuteA is Windows-only, use SDL_OpenURL cross-platform
+#if defined(_WIN32)
 								ShellExecuteA(NULL, "open", strMatchURL.str(), NULL, NULL, SW_SHOWNORMAL);
+#else
+								SDL_OpenURL(strMatchURL.str());
+#endif
 							}
 						}
 					}
@@ -707,7 +718,8 @@ WindowMsgHandledType ScoreScreenSystem( GameWindow *window, UnsignedInt msg,
 				if( controlID == TheNameKeyGenerator->nameToKey(name))
 				{
 					Bool notBuddy = TRUE;
-					Int playerID = (Int)GadgetButtonGetData(TheWindowManager->winGetWindowFromId(nullptr,controlID));
+					// GeneralsX @bugfix Android port 07/11/2026 - Cast via uintptr_t for 64-bit
+					Int playerID = static_cast<Int>(reinterpret_cast<uintptr_t>(GadgetButtonGetData(TheWindowManager->winGetWindowFromId(nullptr,controlID))));
 											// request to add a buddy
 					BuddyInfoMap *buddies = TheGameSpyInfo->getBuddyMap();
 					BuddyInfoMap::iterator bIt;
@@ -1248,7 +1260,8 @@ void initInternetMultiPlayer(void)
 #endif
 
 	g_bNeedToTakeDoneEOGScreenshot = true;
-	g_TimeEnterState = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::utc_clock::now().time_since_epoch()).count();
+	// GeneralsX @bugfix Android port 07/11/2026 - libc++ on Android NDK has no std::chrono::utc_clock yet, system_clock is fine here (no leap-second precision needed)
+	g_TimeEnterState = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 
 	if (!TheGameSpyBuddyMessageQueue)
 		return;

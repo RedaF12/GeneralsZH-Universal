@@ -327,8 +327,9 @@ void BattleHonorTooltip(GameWindow *window,
 		return;
 	}
 
-	Int battleHonor = (Int)GadgetListBoxGetItemData( window, row, col );
-	Int extraValue = (Int)GadgetListBoxGetItemData( window, row - 1, col );
+	// GeneralsX @bugfix Android port 07/11/2026 - Cast via uintptr_t for 64-bit
+	Int battleHonor = static_cast<Int>(reinterpret_cast<uintptr_t>(GadgetListBoxGetItemData( window, row, col )));
+	Int extraValue = static_cast<Int>(reinterpret_cast<uintptr_t>(GadgetListBoxGetItemData( window, row - 1, col )));
 	if (battleHonor == 0)
 	{
 		//DEBUG_CRASH(("No Battle Honor in listbox row %d, col %d!", row, col));

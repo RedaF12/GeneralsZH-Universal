@@ -249,8 +249,9 @@ WindowMsgHandledType BuddyControlSystem( GameWindow *window, UnsignedInt msg,
 					if(rc->pos < 0)
 						break;
 
-					GPProfile profileID = (GPProfile)GadgetListBoxGetItemData(control, rc->pos, 0);
-					RCItemType itemType = (RCItemType)(Int)GadgetListBoxGetItemData(control, rc->pos, 1);
+					// GeneralsX @bugfix Android port 07/11/2026 - Cast via uintptr_t for 64-bit
+					GPProfile profileID = static_cast<GPProfile>(reinterpret_cast<uintptr_t>(GadgetListBoxGetItemData(control, rc->pos, 0)));
+					RCItemType itemType = static_cast<RCItemType>(static_cast<Int>(reinterpret_cast<uintptr_t>(GadgetListBoxGetItemData(control, rc->pos, 1))));
 					UnicodeString nick = UnicodeString(GadgetListBoxGetText(control, rc->pos).str() + 2); // Skip the online/offline indicator
 
 					GadgetListBoxSetSelected(control, rc->pos);
@@ -302,7 +303,8 @@ WindowMsgHandledType BuddyControlSystem( GameWindow *window, UnsignedInt msg,
 				if (selected >= 0)
 				{
 #if defined(GENERALS_ONLINE)
-					int profileID = (int)GadgetListBoxGetItemData(buddyControls.listboxBuddies, selected);
+					// GeneralsX @bugfix Android port 07/11/2026 - Cast via uintptr_t for 64-bit
+					int profileID = static_cast<int>(reinterpret_cast<uintptr_t>(GadgetListBoxGetItemData(buddyControls.listboxBuddies, selected)));
 
 					// Block chatting with a buddy who is currently in the same game as us
 					if (TheNGMPGame && TheNGMPGame->isGameInProgress())
@@ -336,7 +338,8 @@ WindowMsgHandledType BuddyControlSystem( GameWindow *window, UnsignedInt msg,
 					}
 						
 #else
-					GPProfile selectedProfile = (GPProfile)GadgetListBoxGetItemData(buddyControls.listboxBuddies, selected);
+					// GeneralsX @bugfix Android port 07/11/2026 - Cast via uintptr_t for 64-bit
+					GPProfile selectedProfile = static_cast<GPProfile>(reinterpret_cast<uintptr_t>(GadgetListBoxGetItemData(buddyControls.listboxBuddies, selected)));
 					BuddyInfoMap *m = TheGameSpyInfo->getBuddyMap();
 					BuddyInfoMap::iterator recipIt = m->find(selectedProfile);
 					if (recipIt == m->end())
@@ -504,7 +507,8 @@ void updateBuddyInfo( void )
 
             GadgetListBoxGetSelected(buddyControls.listboxBuddies, &selected);
             if (selected >= 0)
-                selectedProfile = (GPProfile)GadgetListBoxGetItemData(buddyControls.listboxBuddies, selected);
+                // GeneralsX @bugfix Android port 07/11/2026 - Cast via uintptr_t for 64-bit
+                selectedProfile = static_cast<GPProfile>(reinterpret_cast<uintptr_t>(GadgetListBoxGetItemData(buddyControls.listboxBuddies, selected)));
 
             selected = -1;
             GadgetListBoxReset(buddyControls.listboxBuddies);
@@ -711,7 +715,8 @@ void updateBuddyInfo( void )
 
 	GadgetListBoxGetSelected(buddyControls.listboxBuddies, &selected);
 	if (selected >= 0)
-		selectedProfile = (GPProfile)GadgetListBoxGetItemData(buddyControls.listboxBuddies, selected);
+		// GeneralsX @bugfix Android port 07/11/2026 - Cast via uintptr_t for 64-bit
+		selectedProfile = static_cast<GPProfile>(reinterpret_cast<uintptr_t>(GadgetListBoxGetItemData(buddyControls.listboxBuddies, selected)));
 
 	selected = -1;
 	GadgetListBoxReset(buddyControls.listboxBuddies);
@@ -1082,7 +1087,8 @@ void WOLBuddyOverlayInit( WindowLayout *layout, void *userData )
 				GadgetListBoxGetSelected(buddyControls.listboxBuddies, &selected);
 				if (selected >= 0)
 				{
-					GPProfile profileID = (GPProfile)GadgetListBoxGetItemData(buddyControls.listboxBuddies, selected);
+					// GeneralsX @bugfix Android port 07/11/2026 - Cast via uintptr_t for 64-bit
+					GPProfile profileID = static_cast<GPProfile>(reinterpret_cast<uintptr_t>(GadgetListBoxGetItemData(buddyControls.listboxBuddies, selected)));
 
 
 					// sending to them, or getting from them, is valid
@@ -1285,7 +1291,8 @@ WindowMsgHandledType WOLBuddyOverlaySystem( GameWindow *window, UnsignedInt msg,
 				GadgetListBoxGetSelected(buddyControls.listboxBuddies, &selected);
 				if (selected >= 0)
 				{
-					GPProfile profileID = (GPProfile)GadgetListBoxGetItemData(control, selected);
+					// GeneralsX @bugfix Android port 07/11/2026 - Cast via uintptr_t for 64-bit
+					GPProfile profileID = static_cast<GPProfile>(reinterpret_cast<uintptr_t>(GadgetListBoxGetItemData(control, selected)));
 					UnicodeString nick = GadgetListBoxGetText(control, selected);
 
 					NGMP_OnlineServices_SocialInterface* pSocialInterface = NGMP_OnlineServicesManager::GetInterface<NGMP_OnlineServices_SocialInterface>();
@@ -1354,7 +1361,8 @@ WindowMsgHandledType WOLBuddyOverlaySystem( GameWindow *window, UnsignedInt msg,
 					if (rc->pos < 0)
 						break;
 
-					GPProfile profileID = (GPProfile)GadgetListBoxGetItemData(control, rc->pos);
+					// GeneralsX @bugfix Android port 07/11/2026 - Cast via uintptr_t for 64-bit
+					GPProfile profileID = static_cast<GPProfile>(reinterpret_cast<uintptr_t>(GadgetListBoxGetItemData(control, rc->pos)));
 					UnicodeString nick = GadgetListBoxGetText(control, rc->pos);
 
                     NGMP_OnlineServices_SocialInterface* pSocialInterface = NGMP_OnlineServicesManager::GetInterface<NGMP_OnlineServices_SocialInterface>();
@@ -1395,7 +1403,8 @@ WindowMsgHandledType WOLBuddyOverlaySystem( GameWindow *window, UnsignedInt msg,
 						break;
 
 					Bool isBuddy = false, isRequest = false;
-					GPProfile profileID = (GPProfile)GadgetListBoxGetItemData(control, rc->pos);
+					// GeneralsX @bugfix Android port 07/11/2026 - Cast via uintptr_t for 64-bit
+					GPProfile profileID = static_cast<GPProfile>(reinterpret_cast<uintptr_t>(GadgetListBoxGetItemData(control, rc->pos)));
 					UnicodeString nick = GadgetListBoxGetText(control, rc->pos);
 					BuddyInfoMap *buddies = TheGameSpyInfo->getBuddyMap();
 					BuddyInfoMap::iterator bIt;
@@ -1486,7 +1495,8 @@ WindowMsgHandledType WOLBuddyOverlaySystem( GameWindow *window, UnsignedInt msg,
 
 					GadgetListBoxGetSelected(listbox, &selected);
 					if (selected >= 0)
-						selectedName = TheNameKeyGenerator->keyToName((NameKeyType)(int)GadgetListBoxGetItemData(listbox, selected));
+						// GeneralsX @bugfix Android port 07/11/2026 - Cast via uintptr_t for 64-bit
+						selectedName = TheNameKeyGenerator->keyToName(static_cast<NameKeyType>(reinterpret_cast<uintptr_t>(GadgetListBoxGetItemData(listbox, selected))));
 
 					if (!selectedName.isEmpty())
 					{
@@ -1512,7 +1522,8 @@ WindowMsgHandledType WOLBuddyOverlaySystem( GameWindow *window, UnsignedInt msg,
 
 							// get text of buddy name
 						buddyName = GadgetListBoxGetText( listboxWindow, rowSelected,0 );
-						GPProfile buddyID = (GPProfile)GadgetListBoxGetItemData( listboxWindow, rowSelected, 0 );
+						// GeneralsX @bugfix Android port 07/11/2026 - Cast via uintptr_t for 64-bit
+						GPProfile buddyID = static_cast<GPProfile>(reinterpret_cast<uintptr_t>(GadgetListBoxGetItemData( listboxWindow, rowSelected, 0 )));
 
 						Int index = -1;
 						gpGetBuddyIndex(TheGPConnection, buddyID, &index);
