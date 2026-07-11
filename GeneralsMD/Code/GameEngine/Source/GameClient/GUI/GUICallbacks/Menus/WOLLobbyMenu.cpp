@@ -350,8 +350,19 @@ static void playerTooltip(GameWindow *window,
 		{
 			if (roomMember != nullptr)
 			{
-				// new
-				pStatsInterface->findPlayerStatsByID(roomMember->user_id, [=](bool bSuccess, PSPlayerStats stats)
+				// GeneralsX @bugfix Android port 11/07/2026 roomMember is a raw
+				// pointer into NGMP_OnlineServices_RoomsInterface's internal room
+				// roster, which gets rebuilt (e.g. refreshPlayerList() /
+				// "Repopulating network room roster") whenever the room's player
+				// list changes -- this async stats lookup can easily still be
+				// in flight when that happens (hover-triggered, no user action
+				// needed to wait it out), leaving roomMember dangling by the
+                // time this lambda fires. Capture the stable int64 user_id
+				// instead and use that inside the lambda; the interface
+				// pointers themselves are safe to capture since they're
+				// long-lived singletons, not per-roster data.
+				int64_t capturedUserID = roomMember->user_id;
+				pStatsInterface->findPlayerStatsByID(capturedUserID, [=](bool bSuccess, PSPlayerStats stats)
 					{
 						if (!bSuccess)
 						{
@@ -360,7 +371,7 @@ static void playerTooltip(GameWindow *window,
 						else
 						{
 							UnicodeString tooltip = UnicodeString::TheEmptyString;
-							if (roomMember->user_id == pAuthInterface->GetUserID())
+							if (capturedUserID == pAuthInterface->GetUserID())
 							{
 								tooltip.format(TheGameText->fetch("TOOLTIP:LocalPlayer"), uName.str());
 							}
@@ -473,7 +484,7 @@ static void playerTooltip(GameWindow *window,
 								if (localMember != nullptr && localMember->m_bIsAdmin)
 								{
 									UnicodeString idLine;
-									idLine.format(L"\n\nUser ID: %lld", roomMember->user_id);
+									idLine.format(L"\n\nUser ID: %lld", capturedUserID);
 									tooltip.concat(idLine);
 								}
 							}

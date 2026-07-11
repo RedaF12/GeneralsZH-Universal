@@ -445,6 +445,21 @@ static void playerTooltip(GameWindow *window,
 				return;
 			}
 
+			// GeneralsX @bugfix Android port 11/07/2026 the outer `game`/`slot`
+			// pointers were captured by value into this async stats-lookup
+			// lambda; TheNGMPGame can be reset()/destroyed (leaving the current
+			// game's slot array dangling) if the player backs out of the setup
+			// screen -- disconnect, host cancels, Back -- while this lookup is
+			// still in flight (hover-triggered, no wait needed to hit the race).
+			// Re-resolve both from the stable slotIdx instead of touching the
+			// captured pointers, and bail if the game/slot no longer exists.
+			NGMPGame* game = pLobbyInterface->GetCurrentGame();
+			if (!game)
+				return;
+			NGMPGameSlot* slot = game->getGameSpySlot(slotIdx);
+			if (!slot)
+				return;
+
 			Bool isLocalPlayer = slot == game->getGameSpySlot(game->getLocalSlotNum());
 
 			//AsciiString localeIdentifier;
