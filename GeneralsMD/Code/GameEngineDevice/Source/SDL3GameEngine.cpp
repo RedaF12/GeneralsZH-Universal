@@ -648,6 +648,9 @@ SDL3GameEngine::SDL3GameEngine()
 	  m_IsActive(false),
 	  m_IsTextInputActive(false),
 	  m_TextInputFocusWindow(nullptr)
+#if defined(SAGE_MOBILE_PLATFORM)
+	  , m_PendingTextInputRearm(false)
+#endif
 {
 	fprintf(stderr, "DEBUG: SDL3GameEngine::SDL3GameEngine() created\n");
 }
@@ -904,6 +907,11 @@ void SDL3GameEngine::pollSDL3Events(void)
 			case SDL_EVENT_FINGER_MOTION:
 			case SDL_EVENT_FINGER_UP:
 			case SDL_EVENT_FINGER_CANCELED:
+				// GeneralsX @bugfix Android port 11/07/2026 - Every fresh tap is a candidate
+				// to re-summon the on-screen keyboard (see updateTextInputState()).
+				if (event.type == SDL_EVENT_FINGER_DOWN) {
+					m_PendingTextInputRearm = true;
+				}
 				if (TheMouse && m_SDLWindow) {
 					SDL3Mouse* mouse = dynamic_cast<SDL3Mouse*>(TheMouse);
 					if (mouse) {
@@ -947,8 +955,28 @@ void SDL3GameEngine::updateTextInputState(void)
 	const Bool wantsTextInput =
 		focusedWindow != nullptr && BitIsSet(focusedWindow->winGetStyle(), GWS_ENTRY_FIELD);
 
+#if defined(SAGE_MOBILE_PLATFORM)
+	// GeneralsX @bugfix Android port 11/07/2026 - On Android the user can dismiss the
+	// on-screen keyboard (back gesture/button) without the entry field ever losing
+	// engine-level focus. SDL's own text-input-active state then stays "on" even
+	// though the IME is gone, so a later SDL_StartTextInput() call is a silent no-op
+	// (SDL only calls into the platform layer on the active:false -> true edge).
+	// Resync by explicitly stopping first when the OS-level keyboard visibility
+	// disagrees with what we think, then only actually reopen it on a fresh tap
+	// (m_PendingTextInputRearm) so dismissing the keyboard doesn't instantly
+	// re-show it.
+	if (m_IsTextInputActive && !SDL_ScreenKeyboardShown(m_SDLWindow)) {
+		SDL_StopTextInput(m_SDLWindow);
+		m_IsTextInputActive = false;
+	}
+#endif
+
 	if (wantsTextInput) {
-		if (!m_IsTextInputActive) {
+		if (!m_IsTextInputActive
+#if defined(SAGE_MOBILE_PLATFORM)
+			|| m_PendingTextInputRearm
+#endif
+			) {
 			if (SDL_StartTextInput(m_SDLWindow)) {
 				m_IsTextInputActive = true;
 			}
@@ -961,6 +989,10 @@ void SDL3GameEngine::updateTextInputState(void)
 		}
 		m_TextInputFocusWindow = nullptr;
 	}
+
+#if defined(SAGE_MOBILE_PLATFORM)
+	m_PendingTextInputRearm = false;
+#endif
 }
 
 // GeneralsX @bugfix felipebraz 01/04/2026 Forward SDL UTF-8 text input through existing GWM_IME_CHAR path.

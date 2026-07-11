@@ -108,6 +108,12 @@ protected:
 	Bool			m_IsActive;
 	Bool			m_IsTextInputActive;
 	GameWindow*	m_TextInputFocusWindow;
+#if defined(SAGE_MOBILE_PLATFORM)
+	// GeneralsX @bugfix Android port 11/07/2026 - Set on every fresh finger-down so
+	// updateTextInputState() can force-reopen the on-screen keyboard even when it was
+	// dismissed by the OS (back gesture/button) without the entry field losing focus.
+	Bool			m_PendingTextInputRearm;
+#endif
 
 	// Event processing
 	void pollSDL3Events(void);

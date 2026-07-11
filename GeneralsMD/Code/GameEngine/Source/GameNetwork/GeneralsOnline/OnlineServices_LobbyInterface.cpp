@@ -2,6 +2,7 @@
 #include "GameNetwork/GeneralsOnline/json.hpp"
 #include "GameNetwork/GeneralsOnline/HTTP/HTTPManager.h"
 #include "GameNetwork/GeneralsOnline/OnlineServices_Init.h"
+#include "GameNetwork/GeneralsOnline/PluginInterfaces.h"
 #include "GameClient/MapUtil.h"
 #include "GameLogic/GameLogic.h"
 
@@ -1309,6 +1310,14 @@ void NGMP_OnlineServices_LobbyInterface::CreateLobby(UnicodeString strLobbyName,
 			j["exe_crc"] = TheGlobalData->m_exeCRC;
 			j["ini_crc"] = TheGlobalData->m_iniCRC;
 			j["max_cam_height"] = NGMP_OnlineServicesManager::Settings.Camera_GetMaxHeight_WhenLobbyHost();
+			// GeneralsX @bugfix Android port 11/07/2026 - Upstream (go_client/main) sends this
+			// field; our port was missing it entirely, which is a likely cause of the server
+			// rejecting CreateLobby requests outright (result: FAILED with no reason given).
+			j["anticheat_id"] = AnticheatPlugInterface::GetAnticheatIdentifier();
+
+			NetworkLog(ELogVerbosity::LOG_RELEASE, "[NGMP] CreateLobby request: name='%s' map_name='%s' map_path='%s' max_players=%d exe_crc=%u ini_crc=%u anticheat_id=%d",
+				to_utf8(strLobbyName.str()).c_str(), strMapName.str(), sanitizedMapPath.str(), initialMaxSize,
+				TheGlobalData->m_exeCRC, TheGlobalData->m_iniCRC, AnticheatPlugInterface::GetAnticheatIdentifier());
 
 			std::string strPostData = j.dump();
 
@@ -1318,6 +1327,12 @@ void NGMP_OnlineServices_LobbyInterface::CreateLobby(UnicodeString strLobbyName,
 					{
 						NGMP_OnlineServices_AuthInterface* pAuthInterface = NGMP_OnlineServicesManager::GetInterface<NGMP_OnlineServices_AuthInterface>();
 						NGMP_OnlineServices_LobbyInterface* pLobbyInterface = NGMP_OnlineServicesManager::GetInterface<NGMP_OnlineServices_LobbyInterface>();
+
+						if (pAuthInterface == nullptr || pLobbyInterface == nullptr)
+						{
+							NetworkLog(ELogVerbosity::LOG_RELEASE, "[NGMP] CreateLobby callback: required interface is null, aborting");
+							return;
+						}
 
 						nlohmann::json jsonObject = nlohmann::json::parse(strBody);
 						CreateLobbyResponse resp = jsonObject.get<CreateLobbyResponse>();
