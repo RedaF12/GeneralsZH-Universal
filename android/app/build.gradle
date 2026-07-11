@@ -1,7 +1,5 @@
 plugins {
     id 'com.android.application'
-    id 'com.google.gms.google-services'
-    id 'com.google.firebase.crashlytics'
 }
 
 android {
@@ -97,16 +95,6 @@ android {
             useLegacyPackaging true
         }
     }
-
-    // GeneralsX @feature Android port 10/07/2026 The crashes worth catching
-    // here are almost all native (game engine / DXVK, in libmain.so), not
-    // Java -- upload debug symbols so those come back as real symbolicated
-    // stacks in the Firebase console instead of raw offsets. libmain.so is
-    // shipped unstripped (see package-android-zh.sh) specifically so this
-    // (and our own AndroidCrashHandler.cpp + addr2line) both work.
-    firebaseCrashlytics {
-        nativeSymbolUploadEnabled true
-    }
 }
 
 dependencies {
@@ -114,13 +102,5 @@ dependencies {
     // GeneralsZHActivity (the actual game surface) stays on its own plain
     // fullscreen theme and never touches these widgets.
     implementation 'com.google.android.material:material:1.12.0'
-
-    // Firebase Crashlytics (+ NDK native-crash support). BOM pins compatible
-    // versions across the Firebase SDKs; no firebase-analytics dependency --
-    // modern Crashlytics doesn't require it, and this app has no interest in
-    // tracking user analytics, only crashes.
-    implementation platform('com.google.firebase:firebase-bom:33.7.0')
-    implementation 'com.google.firebase:firebase-crashlytics'
-    implementation 'com.google.firebase:firebase-crashlytics-ndk'
 }
 

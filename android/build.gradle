@@ -1,9 +1,3 @@
 plugins {
     id 'com.android.application' version '8.5.2' apply false
-    // GeneralsX @feature Android port 10/07/2026 Firebase Crashlytics: catches
-    // native (libmain.so/DXVK) crashes automatically and uploads them, on top
-    // of (not instead of) the existing on-device crash.log -- useful for
-    // crashes a tester doesn't think to go dig the log file out for.
-    id 'com.google.gms.google-services' version '4.4.2' apply false
-    id 'com.google.firebase.crashlytics' version '3.0.2' apply false
 }
