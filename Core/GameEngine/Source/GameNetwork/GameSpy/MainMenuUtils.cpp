@@ -831,6 +831,8 @@ void StopAsyncDNSCheck()
 
 void StartPatchCheck()
 {
+	fprintf(stderr, "DEBUG-ONLINE: StartPatchCheck enter\n");
+	fflush(stderr);
 #if defined(GENERALS_ONLINE)
 	// GeneralsX @feature Android port 10/07/2026 the legacy GameSpy path below
 	// is DNS-checking servers EA shut down years ago -- it can never succeed.
@@ -839,10 +841,14 @@ void StartPatchCheck()
 	// old (always-fails) path if there's no session yet.
 	if (TryStartGeneralsOnline())
 	{
+		fprintf(stderr, "DEBUG-ONLINE: StartPatchCheck -- TryStartGeneralsOnline handled it, returning\n");
+		fflush(stderr);
 		return;
 	}
 #endif
 
+	fprintf(stderr, "DEBUG-ONLINE: StartPatchCheck -- falling through to legacy GameSpy DNS-check path\n");
+	fflush(stderr);
 	checkingForPatchBeforeGameSpy = TRUE;
 	cantConnectBeforeOnline = FALSE;
 	timeThroughOnline++;

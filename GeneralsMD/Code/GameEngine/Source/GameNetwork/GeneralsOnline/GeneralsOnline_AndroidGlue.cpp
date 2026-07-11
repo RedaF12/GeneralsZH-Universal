@@ -41,6 +41,8 @@ namespace
 		const char* internalPath = SDL_GetAndroidInternalStoragePath();
 		if (internalPath == nullptr)
 		{
+			fprintf(stderr, "DEBUG-ONLINE: ReadAndroidSession bail -- SDL_GetAndroidInternalStoragePath() returned null\n");
+			fflush(stderr);
 			return false;
 		}
 
@@ -49,6 +51,8 @@ namespace
 		FILE* f = fopen(markerPath, "r");
 		if (f == nullptr)
 		{
+			fprintf(stderr, "DEBUG-ONLINE: ReadAndroidSession bail -- could not open '%s' (not signed in yet?)\n", markerPath);
+			fflush(stderr);
 			return false;
 		}
 
@@ -77,7 +81,11 @@ namespace
 		}
 		fclose(f);
 
-		return !outSession.sessionToken.empty() && !outSession.wsUri.empty();
+		bool bValid = !outSession.sessionToken.empty() && !outSession.wsUri.empty();
+		fprintf(stderr, "DEBUG-ONLINE: ReadAndroidSession parsed '%s' -- hasToken=%d hasWsUri=%d valid=%d\n",
+			markerPath, !outSession.sessionToken.empty(), !outSession.wsUri.empty(), (int)bValid);
+		fflush(stderr);
+		return bValid;
 	}
 }
 #endif // __ANDROID__
@@ -85,6 +93,8 @@ namespace
 bool TryStartGeneralsOnline()
 {
 #if defined(__ANDROID__)
+	fprintf(stderr, "DEBUG-ONLINE: TryStartGeneralsOnline enter\n");
+	fflush(stderr);
 	AndroidSession session;
 	if (!ReadAndroidSession(session))
 	{
@@ -92,8 +102,13 @@ bool TryStartGeneralsOnline()
 		// Account screen in the Settings app first. Fall through to the
 		// legacy path (which will show its own "can't connect" message);
 		// a friendlier prompt here is a follow-up.
+		fprintf(stderr, "DEBUG-ONLINE: TryStartGeneralsOnline -- no valid session, falling through to legacy path\n");
+		fflush(stderr);
 		return false;
 	}
+	fprintf(stderr, "DEBUG-ONLINE: TryStartGeneralsOnline -- session found, userId=%s displayName=%s\n",
+		session.userId.c_str(), session.displayName.c_str());
+	fflush(stderr);
 
 	if (NGMP_OnlineServicesManager::GetInstance() == nullptr)
 	{
@@ -130,6 +145,8 @@ bool TryStartGeneralsOnline()
 	ClearGSMessageBoxes();
 	GSMessageBoxNoButtons(UnicodeString(L"GeneralsOnline"), UnicodeString(L"Connecting..."), false);
 
+	fprintf(stderr, "DEBUG-ONLINE: TryStartGeneralsOnline -- calling OnLogin, wsUri=%s\n", session.wsUri.c_str());
+	fflush(stderr);
 	NGMP_OnlineServicesManager::GetInstance()->OnLogin(ELoginResult::Success, session.wsUri.c_str(), []()
 		{
 			// GeneralsX @feature Android port 11/07/2026 the real upstream
@@ -137,9 +154,13 @@ bool TryStartGeneralsOnline()
 			// GameClient) replaces our earlier hand-rolled GeneralsOnlineHome
 			// screen -- same entry point upstream's own MainMenu -> Online
 			// button flow uses.
+			fprintf(stderr, "DEBUG-ONLINE: OnLogin callback fired, pushing WOLWelcomeMenu.wnd\n");
+			fflush(stderr);
 			ClearGSMessageBoxes();
 			TheShell->push("Menus/WOLWelcomeMenu.wnd");
 		});
+	fprintf(stderr, "DEBUG-ONLINE: TryStartGeneralsOnline -- OnLogin call returned, exiting\n");
+	fflush(stderr);
 
 	return true;
 #else

@@ -80,9 +80,16 @@ enum KindOfType CPP_11(: Int)
 	KINDOF_STEALTH_GARRISON,				/** enemy teams can't tell that unit is in building.. and if they
 																		garrison that building, they stealth unit will eject. */
 	KINDOF_CASH_GENERATOR,					///< used to check if the unit generates cash... checked by cash hackers and whatever else comes up
-#if RTS_GENERALS
+	// GeneralsX @bugfix Android port 11/07/2026 was `#if RTS_GENERALS`-only,
+	// same bug class as DAMAGE_FLESHY_SNIPER: ThingTemplate.cpp's
+	// parseKindOfFromINI() has a dedicated backward-compat shim translating
+	// legacy `KindOf = AIRFIELD` into KINDOF_FS_AIRFIELD specifically for
+	// Zero Hour data (its own comment says so), but that shim itself was
+	// ALSO `#if RTS_GENERALS`-gated, so it could never run in this
+	// (RTS_ZEROHOUR-only) build -- the legacy token wouldn't resolve at all
+	// if retail ZH data still uses it anywhere. Keep this enum value
+	// compiled for both games; see the matching fix in ThingTemplate.cpp.
 	KINDOF_AIRFIELD,								///< unit has a runway that planes can takeoff/land on
-#endif
 	KINDOF_DRAWABLE_ONLY,						///< template is used only to create drawables (not Objects)
 	KINDOF_MP_COUNT_FOR_VICTORY,		///< If a player loses all his buildings that have this kindof in a multiplayer game, he loses.
 	KINDOF_REBUILD_HOLE,						///< a GLA rebuild hole

@@ -71,9 +71,9 @@ const char* const KindOfMaskType::s_bitNameList[] =
 	"HEAL_PAD",
 	"STEALTH_GARRISON",
 	"CASH_GENERATOR",
-#if RTS_GENERALS
+	// GeneralsX @bugfix Android port 11/07/2026 keep in sync with
+	// KINDOF_AIRFIELD in KindOf.h no longer being RTS_GENERALS-only.
 	"AIRFIELD",
-#endif
 	"DRAWABLE_ONLY",
 	"MP_COUNT_FOR_VICTORY",
 	"REBUILD_HOLE",
