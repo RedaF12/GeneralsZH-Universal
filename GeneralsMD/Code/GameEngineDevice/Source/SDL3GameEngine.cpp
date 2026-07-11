@@ -647,10 +647,8 @@ SDL3GameEngine::SDL3GameEngine()
 	  m_IsInitialized(false),
 	  m_IsActive(false),
 	  m_IsTextInputActive(false),
-	  m_TextInputFocusWindow(nullptr)
-#if defined(SAGE_MOBILE_PLATFORM)
-	  , m_PendingTextInputRearm(false)
-#endif
+	  m_TextInputFocusWindow(nullptr),
+	  m_PendingTextInputRearm(false)
 {
 	fprintf(stderr, "DEBUG: SDL3GameEngine::SDL3GameEngine() created\n");
 }
