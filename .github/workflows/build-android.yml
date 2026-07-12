@@ -273,6 +273,7 @@ jobs:
           cmake --preset ${{ env.PRESET }} \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DANDROID_CI_BUILD_NUMBER=${{ github.run_number }} \
             2>&1 | tee logs/configure_android.log
 
       - name: Build z_generals (libmain.so) + DXVK d3d8/d3d9
