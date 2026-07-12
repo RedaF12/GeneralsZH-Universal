@@ -31,6 +31,8 @@
 
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
 
+#include <stdio.h>
+
 #include "Common/Debug.h"
 #include "Common/Language.h"
 #include "GameClient/Display.h"
@@ -71,6 +73,40 @@ UnsignedInt WindowLayoutCurrentVersion = 2;
 // the radar cursor
 //
 static Bool sendMousePosMessages = TRUE;
+
+// GeneralsX @bugfix Android port 12/07/2026 - ring buffer of recently
+// destroyed windows, recorded at the moment of the actual free (names copied
+// out while the window is still valid). The null-m_input/m_system guards in
+// winSendInputMsg/winSendSystemMsg consult it so a device log names the exact
+// stale window instead of a bare pointer -- that name is what will pin down
+// which destroy path leaves a dangling reference in the window tree.
+static const int RECENT_DESTROY_RING_SIZE = 64;
+struct RecentDestroyEntry
+{
+	GameWindow *window;
+	char name[96];
+};
+static RecentDestroyEntry s_recentDestroys[RECENT_DESTROY_RING_SIZE] = {};
+static int s_recentDestroyNext = 0;
+
+static void recordDestroyedWindow( GameWindow *window )
+{
+	RecentDestroyEntry &entry = s_recentDestroys[s_recentDestroyNext];
+	entry.window = window;
+	const char *name = window->winGetInstanceData()->m_decoratedNameString.str();
+	snprintf(entry.name, sizeof(entry.name), "%s", (name && name[0]) ? name : "(unnamed)");
+	s_recentDestroyNext = (s_recentDestroyNext + 1) % RECENT_DESTROY_RING_SIZE;
+}
+
+static const char *findRecentlyDestroyedWindowName( GameWindow *window )
+{
+	for (int i = 0; i < RECENT_DESTROY_RING_SIZE; ++i)
+	{
+		if (s_recentDestroys[i].window == window)
+			return s_recentDestroys[i].name;
+	}
+	return nullptr;
+}
 
 //-------------------------------------------------------------------------------------------------
 /** Process windows waiting to be destroyed */
@@ -116,6 +152,8 @@ void GameWindowManager::processDestroyList()
 		winSendSystemMsg( doDestroy, GWM_DESTROY, 0, 0 );
 
 		DEBUG_ASSERTCRASH(doDestroy->winGetUserData() == nullptr, ("Win user data is expected to be deleted now"));
+
+		recordDestroyedWindow( doDestroy );
 
 		// free the memory
 		deleteInstance(doDestroy);
@@ -707,7 +745,12 @@ WindowMsgHandledType GameWindowManager::winSendSystemMsg( GameWindow *window,
 	// live device (stale pointer to a freed, pooled GameWindow).
 	if( window->m_system == nullptr )
 	{
-		DEBUG_LOG(( "winSendSystemMsg: window %p has null m_system (stale/freed window?), ignoring msg %d", window, msg ));
+		// fprintf, not DEBUG_LOG: DEBUG_LOG is compiled out of release builds,
+		// and this diagnostic exists precisely for release device logs.
+		const char *destroyedName = findRecentlyDestroyedWindowName( window );
+		fprintf(stderr, "winSendSystemMsg: window %p has null m_system (stale/freed window, recently destroyed as: %s), ignoring msg %u\n",
+			(void*)window, destroyedName ? destroyedName : "(not in recent-destroy ring)", msg);
+		fflush(stderr);
 		return MSG_IGNORED;
 	}
 
@@ -744,7 +787,12 @@ WindowMsgHandledType GameWindowManager::winSendInputMsg( GameWindow *window,
 	// this guard stops the crash in the meantime.
 	if( window->m_input == nullptr )
 	{
-		DEBUG_LOG(( "winSendInputMsg: window %p has null m_input (stale/freed window?), ignoring msg %d", window, msg ));
+		// fprintf, not DEBUG_LOG: DEBUG_LOG is compiled out of release builds,
+		// and this diagnostic exists precisely for release device logs.
+		const char *destroyedName = findRecentlyDestroyedWindowName( window );
+		fprintf(stderr, "winSendInputMsg: window %p has null m_input (stale/freed window, recently destroyed as: %s), ignoring msg %u\n",
+			(void*)window, destroyedName ? destroyedName : "(not in recent-destroy ring)", msg);
+		fflush(stderr);
 		return MSG_IGNORED;
 	}
 
