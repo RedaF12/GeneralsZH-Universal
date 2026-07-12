@@ -17,8 +17,14 @@
 #include <cmath>
 #include <algorithm>
 
-bool g_bForceRelay = false;
-UnsignedInt m_exeCRCOriginal = 0;
+// GeneralsX @bugfix Android port 12/07/2026 - g_bForceRelay/m_exeCRCOriginal
+// are already defined (as real definitions) in OnlineServices_Init.cpp,
+// which WOLLobbyMenu.cpp already references via its own local `extern`
+// declarations. This file's copy (from the go_int 32ae5135 snapshot, ported
+// standalone) duplicated both as definitions -- a linker error once both
+// translation units are in the same binary. Only g_bForceRelay is actually
+// used below; declare it extern instead of redefining either.
+extern bool g_bForceRelay;
 
 // Static flag to track if NetworkMesh is being destroyed to prevent callback re-entry
 static std::atomic<bool> g_bNetworkMeshDestroying = false;
