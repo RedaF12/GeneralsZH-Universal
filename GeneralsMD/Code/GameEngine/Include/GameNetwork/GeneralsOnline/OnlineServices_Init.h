@@ -197,6 +197,20 @@ private:
     int m_numReconnectAttempts = 0;
     int64_t m_lastReconnectAttempt = -1;
 
+	// GeneralsX @bugfix Android port 12/07/2026 A device log showed the very
+	// first WebSocket connect of a session fail with a transient HTTP error
+	// (curl 22) while the identical token/network succeeded on the next app
+	// launch a minute later -- i.e. restarting the app was standing in for a
+	// retry that this class already does for mid-session drops (see
+	// m_bReconnecting above) but never did for the initial connect, which
+	// gave up after exactly one attempt. Give the initial connect a few
+	// retries of its own before surfacing "Could not connect" to the player.
+	const int maxInitialConnectAttempts = 3;
+	const int timeBetweenInitialConnectAttempts = 1500;
+	bool m_bPendingInitialRetry = false;
+	int m_numInitialConnectAttempts = 0;
+	int64_t m_lastInitialConnectAttempt = -1;
+
 	std::string m_strWebsocketAddr;
 
 	int64_t m_lastPong = -1;

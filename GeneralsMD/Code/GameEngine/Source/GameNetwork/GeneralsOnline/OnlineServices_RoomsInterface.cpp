@@ -421,6 +421,19 @@ void WebSocket::Tick()
 		}
 	}
 
+	// GeneralsX @bugfix Android port 12/07/2026 mirrors the m_bReconnecting
+	// backoff above, but for a retry of the *initial* connect (see
+	// maxInitialConnectAttempts in OnlineServices_Init.h for why).
+	if (m_bPendingInitialRetry)
+	{
+		int64_t currTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+		if (currTime - m_lastInitialConnectAttempt >= timeBetweenInitialConnectAttempts)
+		{
+			m_bPendingInitialRetry = false;
+			Connect(m_strWebsocketAddr.c_str(), false, m_fnWebsocketConnectedCallback);
+		}
+	}
+
 
 
 	/*
@@ -505,7 +518,26 @@ void WebSocket::Tick()
                                 m_lastReconnectAttempt = -1;
                             }
                         }
-                        else // give up immediately
+                        else if (m_numInitialConnectAttempts < maxInitialConnectAttempts)
+                        {
+                            // GeneralsX @bugfix Android port 12/07/2026 retry
+                            // the initial connect a few times (see
+                            // maxInitialConnectAttempts) before giving up --
+                            // a device log showed this exact failure
+                            // ("HTTP response code said error") resolve
+                            // itself on the very next app launch with no
+                            // other change, i.e. a transient failure that a
+                            // retry should absorb instead of forcing the
+                            // player to restart the app.
+                            ++m_numInitialConnectAttempts;
+                            NetworkLog(ELogVerbosity::LOG_RELEASE, "[WebSocket] Initial connect attempt %d/%d failed (%d - %s), retrying",
+                                m_numInitialConnectAttempts, maxInitialConnectAttempts, m->data.result, curl_easy_strerror(m->data.result));
+                            m_bConnected = false;
+                            m_vecWSPartialBuffer.clear();
+                            m_bPendingInitialRetry = true;
+                            m_lastInitialConnectAttempt = currTime;
+                        }
+                        else // give up for real
                         {
                             NetworkLog(ELogVerbosity::LOG_RELEASE, "Going to teardown (initial connect)");
                             NGMP_OnlineServicesManager::GetInstance()->SetPendingFullTeardown(EGOTearDownReason::LOST_CONNECTION);
@@ -516,6 +548,7 @@ void WebSocket::Tick()
                             m_bReconnecting = false;
                             m_numReconnectAttempts = 0;
                             m_lastReconnectAttempt = -1;
+                            m_numInitialConnectAttempts = 0;
 
                             // GeneralsX @bugfix Android port 10/07/2026 the
                             // connected-callback no longer fires on failure
@@ -547,6 +580,7 @@ void WebSocket::Tick()
                         m_bReconnecting = false;
                         m_numReconnectAttempts = 0;
                         m_lastReconnectAttempt = -1;
+                        m_numInitialConnectAttempts = 0;
 
                         // connecting is as good as a pong
                         m_lastPong = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
