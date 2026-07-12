@@ -149,6 +149,24 @@ void GameWindowManager::processDestroyList()
 		if( m_grabWindow == doDestroy )
 			m_grabWindow = nullptr;
 
+		// GeneralsX @bugfix Android port 12/07/2026 - m_loneWindow (the open
+		// combo-box/dropdown overlay) was the one tracked-window pointer NOT
+		// cleared here, unlike m_mouseCaptor/m_currMouseRgn/m_grabWindow/
+		// m_keyboardFocus right above. A destroyed-but-still-referenced
+		// m_loneWindow is a genuine dangling GameWindow* -- winProcessMouseEvent
+		// dereferences it directly (m_loneWindow->winIsChild(...)) with no
+		// liveness check beyond null. On this Android build RTS_GAMEMEMORY_ENABLE
+		// is OFF (see CMakePresets.json's android-vulkan preset comment: the
+		// pool allocator conflicts with OpenAL/libc++ freeing through it), so
+		// GameWindow objects come from plain malloc/free instead of a same-size
+		// pool -- a freed slot is reused by whatever unrelated allocation comes
+		// next, so a stale m_loneWindow now reads back as genuine garbage
+		// instead of "probably still another GameWindow". This matches a real
+		// device crash: a wild `this` inside GameWindow::winSetUserData(),
+		// reached from deep in the mouse-event dispatch chain.
+		if( m_loneWindow == doDestroy )
+			m_loneWindow = nullptr;
+
 		// send the destroy message to the window we're about to kill
 		winSendSystemMsg( doDestroy, GWM_DESTROY, 0, 0 );
 
@@ -1522,6 +1540,12 @@ Int GameWindowManager::winDestroy( GameWindow *window )
 
 	if( m_grabWindow == window )
 		m_grabWindow = nullptr;
+
+	// GeneralsX @bugfix Android port 12/07/2026 - see the matching fix in
+	// processDestroyList() above for why m_loneWindow needs the same
+	// liveness clear as the four pointers just above.
+	if( m_loneWindow == window )
+		m_loneWindow = nullptr;
 
 	for( child = window->m_child; child; child = next )
 	{
