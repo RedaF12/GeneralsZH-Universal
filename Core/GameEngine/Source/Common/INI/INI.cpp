@@ -441,11 +441,30 @@ UnsignedInt INI::load( AsciiString filename, INILoadType loadType, Xfer *pXfer )
 					try {
 						(*parse)( this );
 
-					} catch (...) {
+					}
+					// GeneralsX @bugfix Android port 12/07/2026 - This used to be a single
+					// catch(...) that unconditionally replaced whatever was thrown with a
+					// generic "(Line: '<block-start line>')" message. The per-field parser
+					// deeper in the call stack (see the INIFieldParseProc catch below) already
+					// throws a much more precise INIException naming the exact field, line,
+					// and file -- but that got silently swallowed and overwritten here, which
+					// is why a real-device report (GitHub issue #2, airforcegeneral.ini /
+					// AirF_AmericaJetSpectreGunship1) only ever showed the block's opening
+					// line, never the actual failing field. Let an INIException that already
+					// has a message propagate unchanged; only synthesize a generic one for
+					// exception types that don't carry field-level detail.
+					catch (const INIException&) {
+						throw;
+					}
+					catch (...) {
 						DEBUG_CRASH(("Error parsing block '%s' in INI file '%s'", token, m_filename.str()) );
 						char buff[1024];
-						snprintf(buff, ARRAY_SIZE(buff), "Error parsing INI file '%s' (Line: '%s')\n",
-							m_filename.str(), currentLine.str());
+						// m_buffer/m_lineNum reflect the last line actually read (via
+						// readLine(), shared by every nested per-field parser on this same
+						// INI instance) at throw time, which is generally much closer to the
+						// real failure than currentLine (captured before (*parse)(this) ran).
+						snprintf(buff, ARRAY_SIZE(buff), "Error parsing INI file '%s' in block starting '%s' (failing near line %u: '%s')\n",
+							m_filename.str(), currentLine.str(), m_lineNum, m_buffer);
 
 						throw INIException(buff);
 					}
