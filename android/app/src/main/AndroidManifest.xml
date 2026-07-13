@@ -49,6 +49,7 @@
         android:isGame="true"
         android:appCategory="game"
         android:hardwareAccelerated="true"
+        android:supportsRtl="true"
         android:requestLegacyExternalStorage="false">
 
         <activity
