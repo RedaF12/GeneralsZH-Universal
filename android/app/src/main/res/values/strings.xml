@@ -25,11 +25,14 @@
 
     <!-- SetupActivity: Language card -->
     <string name="setup_card_language">Language</string>
-    <string name="setup_language_help">Changes the language of this Settings app and its Log Viewer / folder browser only — the game itself always uses whatever language your own copied game data (.big files) is in, this app has no control over that. \"System Default\" follows your phone\'s language, falling back to English if it isn\'t one of the languages listed.</string>
+    <string name="setup_language_help">Changes the language of this Settings app and its Log Viewer / folder browser. For German, Spanish, Chinese and Russian, it also switches the game\'s own text automatically, but only if your game folder actually contains that language\'s data (data/&lt;language&gt;/generals.csf) — this app never ships or fakes game text itself, and other languages leave the game\'s own text untouched. \"System Default\" follows your phone\'s language, falling back to English if it isn\'t one of the languages listed.</string>
     <string name="setup_language_status">Language: %1$s</string>
     <string name="setup_button_change_language">Change Language</string>
     <string name="setup_language_dialog_title">Choose a language</string>
     <string name="setup_language_system_default">System Default</string>
+    <string name="setup_language_game_status_default">Game text: unaffected by this setting (uses its own data/registry.ini language, or English by default).</string>
+    <string name="setup_language_game_status_override">Game text: also switched to match (found data/%1$s/generals.csf in your game folder).</string>
+    <string name="setup_language_game_status_missing">Game text: NOT switched — no data/%1$s/generals.csf found in your game folder, so the game keeps its own language.</string>
 
     <!-- SetupActivity: Menu Text Size card -->
     <string name="setup_card_text_size">Menu Text Size</string>

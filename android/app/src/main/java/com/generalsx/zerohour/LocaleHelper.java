@@ -85,6 +85,29 @@ final class LocaleHelper {
         return base.createConfigurationContext(config);
     }
 
+    // GeneralsX @feature Android port 13/07/2026 GitHub issue #4 follow-up:
+    // maps a launcher UI language tag to the engine's own language-folder
+    // token (data/<token>/generals.csf, registry.cpp's GetRegistryLanguage())
+    // -- entirely separate namespaces. Only languages Zero Hour actually
+    // shipped official (or, for Russian, common licensed/fan) localized data
+    // for are listed; everything else returns null, meaning "don't touch the
+    // game's own language, only this app's UI changed." SetupActivity still
+    // requires data/<token>/generals.csf to actually exist in the user's own
+    // game folder before ever writing the override -- this mapping alone
+    // never forces a language whose data isn't present.
+    static String gameDataLanguageFor(String launcherTag) {
+        if (launcherTag == null) {
+            return null;
+        }
+        switch (launcherTag) {
+            case "de": return "german";
+            case "es": return "spanish";
+            case "zh": return "chinese";
+            case "ru": return "russian";  // not an official EA SKU; licensed/fan RU data
+            default:   return null;
+        }
+    }
+
     static String displayNameFor(Context ctx, String tag) {
         if (tag == null || tag.isEmpty()) {
             return ctx.getString(R.string.setup_language_system_default);

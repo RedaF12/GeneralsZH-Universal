@@ -25,11 +25,14 @@
 
     <!-- SetupActivity: Language card -->
     <string name="setup_card_language">Sprache</string>
-    <string name="setup_language_help">Ändert nur die Sprache dieser Einstellungs-App, des Log-Viewers und der Ordnerauswahl — das Spiel selbst verwendet immer die Sprache deiner eigenen kopierten Spieldaten (.big-Dateien), darauf hat diese App keinen Einfluss. „Systemstandard“ folgt der Sprache deines Telefons, mit Englisch als Rückfalloption, falls sie nicht in der Liste ist.</string>
+    <string name="setup_language_help">Ändert die Sprache dieser Einstellungs-App, des Log-Viewers und der Ordnerauswahl. Bei Deutsch, Spanisch, Chinesisch und Russisch wird zusätzlich auch der Spieltext selbst umgeschaltet — aber nur, wenn dein Spielordner tatsächlich Daten für diese Sprache enthält (data/&lt;Sprache&gt;/generals.csf); diese App liefert oder erfindet niemals selbst Spieltext. Bei anderen Sprachen bleibt der Spieltext unverändert. „Systemstandard“ folgt der Sprache deines Telefons, mit Englisch als Rückfalloption, falls sie nicht in der Liste ist.</string>
     <string name="setup_language_status">Sprache: %1$s</string>
     <string name="setup_button_change_language">Sprache ändern</string>
     <string name="setup_language_dialog_title">Sprache wählen</string>
     <string name="setup_language_system_default">Systemstandard</string>
+    <string name="setup_language_game_status_default">Spieltext: von dieser Einstellung nicht betroffen (verwendet die eigene Sprache des Spiels aus registry.ini, sonst Englisch als Standard).</string>
+    <string name="setup_language_game_status_override">Spieltext: ebenfalls umgeschaltet (data/%1$s/generals.csf im Spielordner gefunden).</string>
+    <string name="setup_language_game_status_missing">Spieltext: NICHT umgeschaltet — data/%1$s/generals.csf fehlt im Spielordner, das Spiel behält daher seine eigene Sprache.</string>
 
     <!-- SetupActivity: Menu Text Size card -->
     <string name="setup_card_text_size">Menütextgröße</string>

@@ -25,11 +25,14 @@
 
     <!-- SetupActivity: Language card -->
     <string name="setup_card_language">Язык</string>
-    <string name="setup_language_help">Меняет язык только этого приложения настроек, просмотра логов и выбора папки — сама игра всегда использует тот язык, что задан в ваших собственных скопированных игровых данных (.big-файлах), это приложение на это не влияет. «Как в системе» следует языку телефона, а если его нет в списке — используется английский.</string>
+    <string name="setup_language_help">Меняет язык этого приложения настроек, просмотра логов и выбора папки. Для немецкого, испанского, китайского и русского также переключает текст самой игры — но только если в папке с игрой действительно есть данные для этого языка (data/&lt;язык&gt;/generals.csf); это приложение никогда не подделывает и не поставляет текст игры само. Для остальных языков текст игры не затрагивается. «Как в системе» следует языку телефона, а если его нет в списке — используется английский.</string>
     <string name="setup_language_status">Язык: %1$s</string>
     <string name="setup_button_change_language">Изменить язык</string>
     <string name="setup_language_dialog_title">Выберите язык</string>
     <string name="setup_language_system_default">Как в системе</string>
+    <string name="setup_language_game_status_default">Текст игры: не затронут этой настройкой (используется собственный язык игры из registry.ini, либо английский по умолчанию).</string>
+    <string name="setup_language_game_status_override">Текст игры: тоже переключён (найден data/%1$s/generals.csf в папке игры).</string>
+    <string name="setup_language_game_status_missing">Текст игры: НЕ переключён — в папке игры нет data/%1$s/generals.csf, поэтому игра сохраняет свой язык.</string>
 
     <!-- SetupActivity: Menu Text Size card -->
     <string name="setup_card_text_size">Размер текста меню</string>

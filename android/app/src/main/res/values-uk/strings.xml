@@ -25,11 +25,14 @@
 
     <!-- SetupActivity: Language card -->
     <string name="setup_card_language">Мова</string>
-    <string name="setup_language_help">Змінює мову лише цього застосунку налаштувань, перегляду логів і вибору папки — сама гра завжди використовує ту мову, що задана у ваших власних скопійованих ігрових даних (.big-файлах), цей застосунок на це не впливає. «Як у системі» слідує мові телефону, а якщо її немає у списку — використовується англійська.</string>
+    <string name="setup_language_help">Змінює мову цього застосунку налаштувань, перегляду логів і вибору папки. Для німецької, іспанської, китайської та російської також перемикає текст самої гри — але лише якщо у папці з грою справді є дані для цієї мови (data/&lt;мова&gt;/generals.csf); цей застосунок ніколи сам не постачає й не підробляє текст гри. Для інших мов текст гри не змінюється. «Як у системі» слідує мові телефону, а якщо її немає у списку — використовується англійська.</string>
     <string name="setup_language_status">Мова: %1$s</string>
     <string name="setup_button_change_language">Змінити мову</string>
     <string name="setup_language_dialog_title">Оберіть мову</string>
     <string name="setup_language_system_default">Як у системі</string>
+    <string name="setup_language_game_status_default">Текст гри: не зачеплений цим налаштуванням (використовується власна мова гри з registry.ini, або англійська за замовчуванням).</string>
+    <string name="setup_language_game_status_override">Текст гри: теж перемкнено (знайдено data/%1$s/generals.csf у папці гри).</string>
+    <string name="setup_language_game_status_missing">Текст гри: НЕ перемкнено — у папці гри немає data/%1$s/generals.csf, тому гра зберігає свою мову.</string>
 
     <!-- SetupActivity: Menu Text Size card -->
     <string name="setup_card_text_size">Розмір тексту меню</string>

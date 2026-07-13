@@ -197,10 +197,37 @@ public class SetupActivity extends Activity {
 
         addButton(content, getString(R.string.setup_button_change_language), this::onChangeLanguage);
 
+        gameLanguageStatusView = new TextView(this);
+        gameLanguageStatusView.setPadding(0, dp(8), 0, 0);
+        updateGameLanguageStatusView();
+        content.addView(gameLanguageStatusView);
+
         TextView help = new TextView(this);
         help.setAlpha(0.8f);
         help.setText(R.string.setup_language_help);
         content.addView(help);
+    }
+
+    // GeneralsX @feature Android port 13/07/2026 GitHub issue #4 follow-up:
+    // status line showing whether the launcher's chosen language is also
+    // being applied to the game's own text (see applyGameLanguageOverride()).
+    private TextView gameLanguageStatusView;
+
+    private void updateGameLanguageStatusView() {
+        if (gameLanguageStatusView == null) {
+            return;
+        }
+        String launcherTag = LocaleHelper.getSavedLanguageTag(this);
+        String engineToken = LocaleHelper.gameDataLanguageFor(launcherTag);
+        if (engineToken == null) {
+            gameLanguageStatusView.setText(R.string.setup_language_game_status_default);
+            return;
+        }
+        String gamePath = getSavedGamePath();
+        boolean found = gamePath != null && new File(gamePath, "data/" + engineToken + "/generals.csf").isFile();
+        gameLanguageStatusView.setText(getString(
+            found ? R.string.setup_language_game_status_override : R.string.setup_language_game_status_missing,
+            engineToken));
     }
 
     private void onChangeLanguage() {
@@ -221,11 +248,56 @@ public class SetupActivity extends Activity {
             .setTitle(R.string.setup_language_dialog_title)
             .setSingleChoiceItems(labels, currentIndex, (dialog, which) -> {
                 LocaleHelper.setSavedLanguageTag(this, tags[which]);
+                applyGameLanguageOverride(tags[which]);
                 dialog.dismiss();
                 recreate();
             })
             .setNegativeButton(R.string.common_cancel, null)
             .show();
+    }
+
+    // GeneralsX @feature Android port 13/07/2026 GitHub issue #4 follow-up:
+    // if the launcher's chosen UI language has a corresponding engine
+    // language-folder token (LocaleHelper.gameDataLanguageFor()) AND the
+    // user's own selected game folder actually has that data
+    // (data/<token>/generals.csf -- lowercase "data", matching g_csfFile
+    // in SDL3Main.cpp and the Linux case-sensitivity fix it documents), we
+    // write <filesDir>/game_language.cfg so SDL3Main.cpp exports
+    // CNC_ZH_LANGUAGE before any engine subsystem reads it
+    // (GetRegistryLanguage() in registry.cpp checks that env var first,
+    // ahead of registry.ini and the BIG-file auto-detect). If the data
+    // isn't present -- most commonly Russian, which Zero Hour never
+    // shipped officially and only exists via the user's own fan/licensed
+    // copy -- we deliberately leave the game on its own default/auto-detect
+    // rather than force a language with no text to show
+    // (GameTextManager::init() in GameText.cpp fails gracefully, blank UI
+    // text, if the CSF is missing -- silently wrong is worse than
+    // untouched). Called both when the language changes and when the game
+    // folder changes, since either one can flip the answer.
+    private void applyGameLanguageOverride(String launcherTag) {
+        File marker = new File(getFilesDir(), "game_language.cfg");
+        String engineToken = LocaleHelper.gameDataLanguageFor(launcherTag);
+        if (engineToken == null) {
+            marker.delete();
+            return;
+        }
+        String gamePath = getSavedGamePath();
+        if (gamePath == null) {
+            marker.delete();
+            return;
+        }
+        File csf = new File(gamePath, "data/" + engineToken + "/generals.csf");
+        if (!csf.isFile()) {
+            marker.delete();
+            return;
+        }
+        try (java.io.FileWriter w = new java.io.FileWriter(marker, false)) {
+            w.write(engineToken);
+            w.write("\n");
+        } catch (java.io.IOException e) {
+            // Not fatal: worst case the game just keeps its own default
+            // language, same as before this feature existed.
+        }
     }
 
     // Creates a MaterialCardView appended to `root`, with an optional bold
@@ -796,6 +868,7 @@ public class SetupActivity extends Activity {
         sb.append('\n');
         sb.append(getString(R.string.setup_status_logs_note));
         statusText.setText(sb.toString());
+        updateGameLanguageStatusView();
     }
 
     private String getSavedGamePath() {
@@ -924,6 +997,7 @@ public class SetupActivity extends Activity {
         if (bundledRoot != null) {
             copyBundledRuntimeIfMissing(bundledRoot, path);
         }
+        applyGameLanguageOverride(LocaleHelper.getSavedLanguageTag(this));
     }
 
     // GeneralsX @bugfix Android port 07/07/2026 dxvk.conf, DefaultOptions.ini,
@@ -984,6 +1058,7 @@ public class SetupActivity extends Activity {
     private void onClearGameFolder() {
         getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit().remove(PREF_GAME_PATH).apply();
         new File(getFilesDir(), "gamedata_path.txt").delete();
+        new File(getFilesDir(), "game_language.cfg").delete();
         File externalMarker = externalMarkerFile();
         if (externalMarker != null) {
             externalMarker.delete();
