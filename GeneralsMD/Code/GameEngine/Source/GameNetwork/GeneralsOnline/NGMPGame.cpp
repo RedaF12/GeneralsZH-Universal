@@ -63,7 +63,16 @@ NGMPGame::~NGMPGame()
 	// a 4th (bool) param in a commit outside this port's scope (View.h/W3DView.h
 	// are existing engine files, not part of the GeneralsOnline module) -- our
 	// tree still has the 3-arg signature.
-	TheTacticalView->setDefaultView(0.0f, 0.0f, 1.0f);
+	// GeneralsX @bugfix Android port 13/07/2026 - a literal 0.0f pitch is not
+	// "leave the pitch alone": W3DView::setDefaultView() passes it straight
+	// through to setDefaultPitch(), which stores it directly as the camera's
+	// tilt in radians. 0.0f means "look dead level at the horizon" instead of
+	// down at the battlefield, which is exactly the "first-person" camera a
+	// real device screenshot showed right as a match started. The correct
+	// value (confirmed by View::init()'s own default-pitch setup a few lines
+	// away in View.cpp) is TheGlobalData->m_cameraPitch, converted from
+	// degrees (how it's stored/configured) to radians.
+	TheTacticalView->setDefaultView(DEG_TO_RADF(TheGlobalData->m_cameraPitch), 0.0f, 1.0f);
 }
 
 void NGMPGame::SyncWithLobby(LobbyEntry& lobby)
@@ -495,7 +504,13 @@ void NGMPGame::launchGame(void)
 	// Force camera to update from config
 	// GeneralsX @bugfix Android port 10/07/2026 see NGMPGame::~NGMPGame() above --
 	// our setDefaultView() is still the 3-arg signature.
-	TheTacticalView->setDefaultView(0.0f, 0.0f, 1.0f);
+	// GeneralsX @bugfix Android port 13/07/2026 - see the matching fix in
+	// NGMPGame::~NGMPGame() above: a literal 0.0f pitch made the camera look
+	// dead level at the horizon (a real device screenshot showed a
+	// "first-person" view right as the match started) instead of down at the
+	// battlefield. Use TheGlobalData->m_cameraPitch (degrees -> radians),
+	// same as View::init()'s own default-pitch setup.
+	TheTacticalView->setDefaultView(DEG_TO_RADF(TheGlobalData->m_cameraPitch), 0.0f, 1.0f);
 
 
 	// shutdown the top, but do not pop it off the stack
