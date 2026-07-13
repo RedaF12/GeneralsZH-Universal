@@ -31,12 +31,17 @@ original GeneralsX README lives on the `upstream-main` branch.
 
 - **Android**: primary target. CI builds a signed, installable APK on every
   push. Campaign, skirmish, and Generals Challenge run natively. **Online
-  multiplayer works**: GeneralsOnline (a from-scratch NGMP-based backend, not
-  the long-dead GameSpy servers) drives account login, the multiplayer lobby,
-  Custom Match (create/browse/join, live room + player lists, chat), Quickmatch,
-  My Persona (stats/rank), and Communicator (friends/social). This has been
-  shaken out against real players and real devices, including bug reports from
-  outside testers via this repo's [issue tracker](../../issues) — see
+  multiplayer works, including actual matches**: GeneralsOnline (a from-scratch
+  NGMP-based backend, not the long-dead GameSpy servers) drives account login,
+  the multiplayer lobby, Custom Match (create/browse/join, live room + player
+  lists, chat), Quickmatch, My Persona (stats/rank), and Communicator
+  (friends/social) — and matches now actually start and play: a P2P transport
+  (Valve's [GameNetworkingSockets](https://github.com/ValveSoftware/GameNetworkingSockets),
+  built from source for Android with native ICE/STUN/TURN, no external WebRTC
+  dependency) replaces the legacy transport that internet games never had a
+  real implementation for. This has been shaken out against real players and
+  real devices, including bug reports from outside testers via this repo's
+  [issue tracker](../../issues) — see
   [`docs/port/ANDROID_PORT.md`](docs/port/ANDROID_PORT.md) for the device/driver
   matrix and the full bring-up log.
 - **macOS / iOS / iPadOS**: fully working (campaign, skirmish, Generals
@@ -216,7 +221,10 @@ iteration.
 - Android multiplayer is under active real-device shakeout — most reported crashes
   have traced to a handful of recurring bug classes (see the "what this port
   actually involved" section above) and get fixed fast, but if something's still
-  rough, check or file an issue.
+  rough, check or file an issue. Matches now load and play (P2P transport,
+  camera, and the load-screen crash chain all confirmed working solo, real
+  device); cross-device matches against another live player are the next
+  thing being shaken out.
 
 ## What's next: Renegade 👀
 
