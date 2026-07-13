@@ -2568,6 +2568,13 @@ WindowMsgHandledType WOLLobbyMenuSystem( GameWindow *window, UnsignedInt msg,
 								break;
 							}
 
+							// GeneralsX @bugfix Android port 13/07/2026 - Log this synchronously, before
+							// any network round-trip, so the comparison is captured even if the user
+							// backs out or the app closes before an async JoinLobby response would land.
+							fprintf(stderr, "DEBUG-JOIN: CRC check for lobby %lld '%s': host exe_crc=%u ini_crc=%u, local exe_crc=%u ini_crc=%u (VANILLA_INI_CRC=%u)\n",
+								(long long)Lobby.lobbyID, Lobby.name.c_str(), Lobby.exe_crc, Lobby.ini_crc, TheGlobalData->m_exeCRC, TheGlobalData->m_iniCRC, (unsigned)VANILLA_INI_CRC);
+							fflush(stderr);
+
 							// CRC Check
 							if (Lobby.exe_crc != TheGlobalData->m_exeCRC || Lobby.ini_crc != TheGlobalData->m_iniCRC)
 							{
@@ -2605,6 +2612,11 @@ WindowMsgHandledType WOLLobbyMenuSystem( GameWindow *window, UnsignedInt msg,
 					}
 					else
 					{
+						// GeneralsX @bugfix Android port 13/07/2026 - Distinguish "tapped Join with
+						// no row selected" from a real CRC/network rejection in the log, since on
+						// touch the listbox selection may not register the same way it does on PC.
+						fprintf(stderr, "DEBUG-JOIN: ButtonJoin pressed but no row selected (GadgetListBoxGetSelected returned <0)\n");
+						fflush(stderr);
 						GSMessageBoxOk(TheGameText->fetch("GUI:Error"), TheGameText->fetch("GUI:NoGameSelected"), NULL);
 					}
 					// TODO_NGMP: Start using StagingRoomInfo again, it'll make this easier and cleaner
