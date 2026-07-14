@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Primary Colors (Cyan/Blue) -->
+    <color name="md_theme_dark_primary">#00BCD4</color>
+    <color name="md_theme_dark_on_primary">#003A42</color>
+    <color name="md_theme_dark_primary_container">#005260</color>
+    <color name="md_theme_dark_on_primary_container">#A0E8FF</color>
+
+    <!-- Secondary Colors (Purple) -->
+    <color name="md_theme_dark_secondary">#9C4DFF</color>
+    <color name="md_theme_dark_on_secondary">#2E0854</color>
+    <color name="md_theme_dark_secondary_container">#540D7B</color>
+    <color name="md_theme_dark_on_secondary_container">#E0C9FF</color>
+
+    <!-- Tertiary Colors (Orange) -->
+    <color name="md_theme_dark_tertiary">#FF9800</color>
+    <color name="md_theme_dark_on_tertiary">#332200</color>
+    <color name="md_theme_dark_tertiary_container">#664D00</color>
+    <color name="md_theme_dark_on_tertiary_container">#FFD8A8</color>
+
+    <!-- Surface Colors (Dark Gray/Black) -->
+    <color name="md_theme_dark_surface">#121212</color>
+    <color name="md_theme_dark_on_surface">#FFFBFE</color>
+    <color name="md_theme_dark_surface_variant">#1E1E1E</color>
+    <color name="md_theme_dark_on_surface_variant">#CFD0D5</color>
+
+    <!-- Error Colors (Red) -->
+    <color name="md_theme_dark_error">#F44336</color>
+    <color name="md_theme_dark_on_error">#FFFFFF</color>
+
+    <!-- Background -->
+    <color name="md_theme_dark_background">#0A0E27</color>
+    <color name="md_theme_dark_on_background">#FFFBFE</color>
+
+    <!-- Custom Game Colors -->
+    <color name="accent_cyan">#00BCD4</color>
+    <color name="accent_purple">#9C4DFF</color>
+    <color name="accent_orange">#FF9800</color>
+    <color name="accent_red">#F44336</color>
+    <color name="accent_green">#4CAF50</color>
+
+    <!-- Dark Theme Variants -->
+    <color name="dark_bg_primary">#0A0E27</color>
+    <color name="dark_bg_secondary">#121212</color>
+    <color name="dark_bg_tertiary">#1E1E1E</color>
+
+    <!-- Transparent Variants -->
+    <color name="overlay_dark_50">#80000000</color>
+    <color name="overlay_dark_75">#BF000000</color>
+</resources>
