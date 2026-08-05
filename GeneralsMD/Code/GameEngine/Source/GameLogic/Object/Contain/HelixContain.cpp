@@ -134,9 +134,13 @@ void HelixContain::redeployOccupants()
   firePos.z += 8;
 
 
-	for (ContainedItemsList::iterator it = m_containList.begin(); it != m_containList.end(); ++it)
+	// GeneralsX @bugfix Android port 04/08/2026 same rationale as
+	// OpenContain::redeployOccupants() -- advance before calling setPosition(),
+	// which can synchronously mutate m_containList via destroyObject().
+	for (ContainedItemsList::iterator it = m_containList.begin(); it != m_containList.end(); )
   {
     Object* rider = *it;
+    ++it;
     if (rider)
       rider->setPosition( &firePos );
   }

@@ -575,7 +575,23 @@ elseif(ANDROID)
   # bug found so far, but is a mitigation applied by code audit, not a
   # confirmed fix for this specific tombstone -- no access to the reporting
   # device to verify live.
-  foreach(DXVK_PATCH_NAME dxvk-android.patch dxvk-ios.patch dxvk-vulkan11-adaptive.patch dxvk-resource-refcount-memory-order.patch dxvk-mali-clip-distance.patch dxvk-mali-g76-robustness2-optional.patch dxvk-android-missing-fallback-extensions.patch dxvk-mali-g76-legacy-barrier-fallback.patch dxvk-mali-g76-semaphore-fn-fallback.patch dxvk-mali-g76-4444-format.patch dxvk-mali-g76-copy-commands2.patch dxvk-mali-g76-legacy-copy-fallback.patch dxvk-mali-g76-legacy-render-pass.patch dxvk-mali-g76-composite-alpha.patch dxvk-mali-g76-vertex-buffer-stride-fallback.patch dxvk-mali-g76-extended-dynamic-state.patch dxvk-mali-g76-dynamic-state-fallback.patch dxvk-mali-g76-demote-to-helper-fallback.patch dxvk-mali-g76-null-descriptor-fallback.patch dxvk-mali-g76-swapchain-blitter-legacy-renderpass.patch dxvk-mali-g76-blitter-pipeline-legacy-renderpass.patch dxvk-mali-g76-blitter-null-descriptor-fallback.patch dxvk-mali-g76-format-properties3-fallback.patch dxvk-mali-g76-hud-image-legacy-renderpass.patch dxvk-mali-g76-hud-stderr-log.patch dxvk-composite-alpha-log.patch dxvk-android-force-opaque-alpha.patch dxvk-refcount-memory-order-audit.patch)
+  # dxvk-android-swapchain-suboptimal-churn.patch: Presenter::presentImage()
+  # treated any non-VK_SUCCESS present result (including VK_SUBOPTIMAL_KHR) as
+  # a reason to tear down and rebuild the entire swapchain on the next acquire.
+  # We always request preTransform = IDENTITY without checking the surface's
+  # actual currentTransform, so on devices where the compositor's transform for
+  # this app's orientation isn't identity, the image still composites
+  # correctly but every single present legitimately (and permanently) reports
+  # VK_SUBOPTIMAL_KHR -- recreating never clears it, since the new swapchain
+  # still requests IDENTITY. Confirmed via a v1.1.5 pre-release tester log:
+  # ~4800 swapchain recreations across one session, i.e. one full teardown/
+  # rebuild per frame, the entire time. That's a large amount of self-inflicted
+  # Vulkan resource churn that stresses any latent resource-lifetime race (the
+  # ARM memory-ordering corruption class this fork is still chasing) far more
+  # than normal play would. Now only forces a recreate on an actual negative
+  # VkResult; real resize/format/present-mode changes already go through their
+  # own dedicated setSurfaceExtent()/setSurfaceFormat()/setSyncInterval() calls.
+  foreach(DXVK_PATCH_NAME dxvk-android.patch dxvk-ios.patch dxvk-vulkan11-adaptive.patch dxvk-resource-refcount-memory-order.patch dxvk-mali-clip-distance.patch dxvk-mali-g76-robustness2-optional.patch dxvk-android-missing-fallback-extensions.patch dxvk-mali-g76-legacy-barrier-fallback.patch dxvk-mali-g76-semaphore-fn-fallback.patch dxvk-mali-g76-4444-format.patch dxvk-mali-g76-copy-commands2.patch dxvk-mali-g76-legacy-copy-fallback.patch dxvk-mali-g76-legacy-render-pass.patch dxvk-mali-g76-composite-alpha.patch dxvk-mali-g76-vertex-buffer-stride-fallback.patch dxvk-mali-g76-extended-dynamic-state.patch dxvk-mali-g76-dynamic-state-fallback.patch dxvk-mali-g76-demote-to-helper-fallback.patch dxvk-mali-g76-null-descriptor-fallback.patch dxvk-mali-g76-swapchain-blitter-legacy-renderpass.patch dxvk-mali-g76-blitter-pipeline-legacy-renderpass.patch dxvk-mali-g76-blitter-null-descriptor-fallback.patch dxvk-mali-g76-format-properties3-fallback.patch dxvk-mali-g76-hud-image-legacy-renderpass.patch dxvk-mali-g76-hud-stderr-log.patch dxvk-composite-alpha-log.patch dxvk-android-force-opaque-alpha.patch dxvk-refcount-memory-order-audit.patch dxvk-android-swapchain-suboptimal-churn.patch)
     execute_process(
       COMMAND git -C "${DXVK_LOCAL_FORK_DIR}" apply --reverse --check "${CMAKE_SOURCE_DIR}/Patches/${DXVK_PATCH_NAME}"
       RESULT_VARIABLE DXVK_PATCH_ALREADY_APPLIED

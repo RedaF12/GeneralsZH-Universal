@@ -1,0 +1,32 @@
+diff --git a/src/dxvk/dxvk_presenter.cpp b/src/dxvk/dxvk_presenter.cpp
+index 38b8a2d..170f91c 100644
+--- a/src/dxvk/dxvk_presenter.cpp
++++ b/src/dxvk/dxvk_presenter.cpp
+@@ -245,7 +245,26 @@ namespace dxvk {
+     // There is no guarantee that suboptimal state is returned by both functions.
+     std::lock_guard lock(m_surfaceMutex);
+ 
+-    if (status != VK_SUCCESS) {
++    // GeneralsX @bugfix Android port 05/08/2026 We always request preTransform
++    // = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR (see createSwapchain() below) and
++    // never inspect the surface's actual currentTransform. On Android devices
++    // whose compositor reports a non-identity currentTransform for this app's
++    // orientation, that mismatch is permanent: the image still composites
++    // correctly (the compositor absorbs the extra rotation itself), but every
++    // single vkQueuePresentKHR legitimately returns VK_SUBOPTIMAL_KHR forever.
++    // Recreating the swapchain doesn't fix that -- the new one still requests
++    // IDENTITY -- so treating VK_SUBOPTIMAL_KHR the same as a hard error here
++    // caused a full swapchain teardown/rebuild on literally every frame, all
++    // session long, on affected devices (confirmed via a tester log: ~4800
++    // recreations in a single play session). That's a huge amount of pointless
++    // Vulkan resource churn stressing any latent resource-lifetime race far
++    // more than normal play would. Real resize/format/present-mode changes
++    // already flow through their own dedicated setSurfaceExtent() /
++    // setSurfaceFormat() / setSyncInterval() calls above, which set
++    // m_dirtySwapchain independently -- so it's safe to only force a recreate
++    // here on an actual failure (negative VkResult, e.g. VK_ERROR_OUT_OF_DATE_KHR
++    // or VK_ERROR_SURFACE_LOST_KHR), not on the informational VK_SUBOPTIMAL_KHR.
++    if (status < 0) {
+       Logger::info(str::format("Presenter: Got ", status, ", recreating swapchain"));
+ 
+       m_dirtySwapchain = true;

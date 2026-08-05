@@ -1265,9 +1265,20 @@ void OpenContain::redeployOccupants()
 	// backwards to the start ... that reflects the order in which they actually went
 	// into the building since all list building constructs at the head
 	//
-	for (ContainedItemsList::const_reverse_iterator it = getContainList().rbegin(); it != getContainList().rend(); ++it)
+	// GeneralsX @bugfix Android port 04/08/2026 setPosition() can synchronously
+	// reach Object::reactToTransformChange(), which (e.g. via its NaN-position
+	// safety net) can call TheGameLogic->destroyObject() on the very occupant
+	// being positioned; that runs Object::onDestroy() -> removeFromContain() ->
+	// m_containList.erase() on the node this loop is standing on, corrupting the
+	// post-increment iterator (crash reported on a fork of this project when a
+	// garrisoned unit dies -- see W3DTreeBuffer::unitMoved() null deref). Advance
+	// the iterator before calling into code that may mutate m_containList, same
+	// idiom already used by iterateContained()/killAllContained().
+	for (ContainedItemsList::const_reverse_iterator it = getContainList().rbegin(); it != getContainList().rend(); )
 	{
-		putObjAtNextFirePoint( *it );
+		Object *obj = *it;
+		++it;
+		putObjAtNextFirePoint( obj );
 	}
 
 }
