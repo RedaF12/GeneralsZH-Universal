@@ -14,6 +14,25 @@ set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 cd "$REPO"
 
+# GeneralsX @bugfix Android port 06/08/2026 references/fbraz3-dxvk is a
+# submodule that's EXPECTED to be dirty (cmake/dx8.cmake applies
+# Patches/dxvk-*.patch to it at configure time, idempotently -- see
+# .gitmodules' `ignore = dirty`), but a stray, untracked diagnostic edit
+# unrelated to any tracked patch (added once for a since-fixed Mali-G76
+# crash, never reverted) kept resurfacing across this persistent sandbox
+# session -- and critically, it had ended up STAGED in the submodule's own
+# index, not just dirty in the working tree, so a plain `git checkout .`
+# didn't clear it. That contamination cost an entire session of "identical
+# source, one build lags and the next doesn't" confusion, confirmed via a
+# controlled A/B rebuild of the exact same commit. Force a fully pristine
+# submodule (index AND working tree) at the start of every local build so
+# this can't silently happen again; the patch-application step below
+# reapplies everything real from a known-clean base either way.
+if [ -d "${REPO}/references/fbraz3-dxvk/.git" ] || [ -f "${REPO}/references/fbraz3-dxvk/.git" ]; then
+  git -C "${REPO}/references/fbraz3-dxvk" reset --hard HEAD
+  git -C "${REPO}/references/fbraz3-dxvk" clean -fdx -q
+fi
+
 PRESET=android-vulkan
 NDK_VERSION="27.2.12479018"
 CMDLINE_TOOLS_VERSION="13114758"
