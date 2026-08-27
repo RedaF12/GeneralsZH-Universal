@@ -1,4 +1,4 @@
-name: Build Android
+name: Build Android APK
 
 permissions:
   # GeneralsX @feature Android port 09/07/2026 contents:write is needed for the
