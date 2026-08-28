@@ -16,6 +16,29 @@
     <string name="setup_button_view_logs">View Logs</string>
     <string name="setup_button_clear_game_folder">Clear Game Folder Setting</string>
 
+    <!-- TouchControlsActivity -->
+    <string name="setup_card_touch_controls">Mobile Controls</string>
+    <string name="setup_button_touch_controls">Configure Touch Controls</string>
+    <string name="setup_touch_controls_help">Build your own in-game hotkey panel: add or remove buttons, choose keyboard keys and Ctrl/Shift/Alt modifiers, drag every button to its preferred screen position, and tune camera-pan speed, button size, and transparency. Double-tapping a button sends its key twice, so mappings such as Leikeze\'s matching-unit key retain their second-press behavior.</string>
+    <string name="touch_editor_title">Touch Controls Editor</string>
+    <string name="touch_overlay_enabled">Show hotkey panel</string>
+    <string name="touch_add_button">Add</string>
+    <string name="touch_edit_button">Edit</string>
+    <string name="touch_delete_button">Delete</string>
+    <string name="touch_reset_button">Defaults</string>
+    <string name="touch_save_button">Save</string>
+    <string name="touch_apply_button">Apply</string>
+    <string name="touch_pan_speed">Pan speed: %1$d%%</string>
+    <string name="touch_button_size">Button size: %1$d%%</string>
+    <string name="touch_button_opacity">Opacity: %1$d%%</string>
+    <string name="touch_selected_button">Selected: %1$s — drag it to move</string>
+    <string name="touch_drag_help_short">Tap a button to select it, then drag to position it</string>
+    <string name="touch_button_label_hint">Button label (up to 8 characters)</string>
+    <string name="touch_edit_dialog_title">Button action</string>
+    <string name="touch_select_button_first">Select a button first</string>
+    <string name="touch_too_many_buttons">Maximum 20 buttons</string>
+    <string name="touch_saved">Touch controls saved. They apply on the next game launch.</string>
+
     <!-- SetupActivity: status text -->
     <string name="setup_status_folder_not_set">Game folder: not set.\n</string>
     <string name="setup_status_folder_line">Game folder: %1$s\n</string>

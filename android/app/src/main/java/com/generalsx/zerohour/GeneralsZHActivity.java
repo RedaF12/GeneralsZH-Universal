@@ -130,7 +130,17 @@ public class GeneralsZHActivity extends SDLActivity {
             }
         }
 
+        // Persist native gesture settings before libmain.so starts and remove
+        // the legacy fixed 0-9 GroupPanel when the configurable overlay is on.
+        File launchFolder = haveCustomPath ? new File(gamePath) : legacyGameDataDir();
+        TouchControlConfig.prepareForLaunch(this, launchFolder);
+
         super.onCreate(savedInstanceState);
+
+        // SDLActivity has created its SurfaceView/layout at this point. Add a
+        // transparent touch-through layer above it: only configured button
+        // rectangles consume input; every other gesture still reaches SDL.
+        HotkeyOverlayView.attach(this);
     }
 
     // GeneralsX @bugfix Android port 02/08/2026 A tester reported the camera

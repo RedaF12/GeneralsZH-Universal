@@ -123,6 +123,13 @@
             android:configChanges="orientation|screenSize|keyboardHidden" />
 
         <activity
+            android:name=".TouchControlsActivity"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:theme="@style/Theme.GeneralsZHSettings"
+            android:configChanges="orientation|screenSize|keyboardHidden" />
+
+        <activity
             android:name=".LogViewerActivity"
             android:exported="false"
             android:theme="@style/Theme.GeneralsZHSettings"

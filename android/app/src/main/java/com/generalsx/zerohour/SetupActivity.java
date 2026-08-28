@@ -125,6 +125,7 @@ public class SetupActivity extends Activity {
         root.addView(statusText);
 
         addButton(root, getString(R.string.setup_button_select_game_folder), this::onSelectGameFolder);
+        addButton(root, getString(R.string.setup_button_touch_controls), this::onTouchControls);
         addButton(root, getString(R.string.setup_button_view_logs), this::onViewLogs);
         addButton(root, getString(R.string.setup_button_launch_game), this::onLaunchGame);
         addButton(root, getString(R.string.setup_button_clear_game_folder), this::onClearGameFolder);
@@ -194,6 +195,8 @@ public class SetupActivity extends Activity {
         // players never touch.
         buildGeneralsOnlineSection(root);
 
+        buildTouchControlsSection(root);
+
         buildLanguageSection(root);
         buildUiScaleSection(root);
         applyRecommendedDriverIfNeeded();
@@ -205,6 +208,22 @@ public class SetupActivity extends Activity {
         TextView help = new TextView(this);
         help.setText(R.string.setup_how_it_works_body);
         helpCard.addView(help);
+    }
+
+    // Android-first control center: the editor owns both the visible hotkey
+    // overlay and native camera-pan sensitivity. It intentionally lives near
+    // the primary launch/account actions rather than under renderer diagnostics.
+    private void buildTouchControlsSection(LinearLayout root) {
+        LinearLayout content = startCard(root, getString(R.string.setup_card_touch_controls));
+        TextView help = new TextView(this);
+        help.setText(R.string.setup_touch_controls_help);
+        help.setPadding(0, 0, 0, dp(8));
+        content.addView(help);
+        addButton(content, getString(R.string.setup_button_touch_controls), this::onTouchControls);
+    }
+
+    private void onTouchControls() {
+        startActivity(new Intent(this, TouchControlsActivity.class));
     }
 
     // GeneralsX @feature Android port 13/07/2026 GitHub issue #4: in-app

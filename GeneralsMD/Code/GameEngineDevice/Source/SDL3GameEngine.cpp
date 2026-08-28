@@ -274,6 +274,7 @@ struct TouchState {
 	SDL_FingerID finger2 = 0;
 	float downX = 0.0f, downY = 0.0f;   // finger1 down position (window points), fixed until release
 	float lastX = 0.0f, lastY = 0.0f;   // finger1 latest position (pixels)
+	float maxMoveFromDown = 0.0f;        // largest L1 displacement; protects near-drags from becoming commands
 	Uint64 downTicks = 0;
 
 	// GeneralsX @feature Android port 01/08/2026 Native touch camera control:
@@ -329,6 +330,14 @@ const Uint64 SELECT_HOLD_MS = 250;
 // both the standard Android touch-slop range and enough slack to absorb
 // stationary-hold tremor while waiting out LONG_PRESS_MS for a long-press.
 const float TAP_DEAD_ZONE_PX = 16.0f;
+
+// A real attempt to pan can end before crossing the full tap-vs-pan dead zone
+// (especially when the player touches down, hesitates, then makes a short
+// swipe). Treating that as a stationary long-press emits a right-click move
+// order: a selected dozer then abandons the building it just started and drives
+// to the finger position. Six pixels still tolerates normal finger tremor, but
+// anything beyond it is clearly drag intent and must never become a command.
+const float COMMAND_HOLD_MAX_MOVE_PX = 6.0f;
 
 // Double-tap: select all of the clicked unit's type on screen, matching the
 // PC's double-click. 350ms/40px roughly matches Android's own
@@ -403,6 +412,33 @@ const float ZOOM_PX_PER_TICK = 40.0f; // calibration only -- see ZOOM_HEIGHT_PER
 // every call.
 const float ZOOM_HEIGHT_PER_PIXEL = (float)View::ZoomHeightPerSecond / ZOOM_PX_PER_TICK;
 
+// Written by TouchControlsActivity into the selected game folder before the
+// native library starts. Lazy loading keeps iOS/desktop behavior unchanged and
+// safely falls back to the original 1:1 mapping when the file is absent.
+float s_touchPanSensitivity = 1.0f;
+bool s_touchConfigLoaded = false;
+
+void loadTouchConfigIfNeeded()
+{
+	if (s_touchConfigLoaded) {
+		return;
+	}
+	s_touchConfigLoaded = true;
+	FILE *file = fopen("GeneralsXTouch.ini", "r");
+	if (!file) {
+		return;
+	}
+	char line[128];
+	while (fgets(line, sizeof(line), file)) {
+		float value = 1.0f;
+		if (sscanf(line, "PanSensitivity=%f", &value) == 1 && value >= 0.35f && value <= 2.5f) {
+			s_touchPanSensitivity = value;
+		}
+	}
+	fclose(file);
+	GX_TRACE("Touch controls: pan sensitivity %.2f\n", s_touchPanSensitivity);
+}
+
 // Applies a camera pan by projecting the finger's previous and current
 // screen position onto the ground (View::screenToTerrain) and moving the
 // camera by the resulting world-space difference -- see the @bugfix comment
@@ -412,6 +448,7 @@ const float ZOOM_HEIGHT_PER_PIXEL = (float)View::ZoomHeightPerSecond / ZOOM_PX_P
 // worldAtNewScreenPos), using the CURRENT camera for both projections.
 void applyCameraPan(float fromPxX, float fromPxY, float toPxX, float toPxY)
 {
+	loadTouchConfigIfNeeded();
 	if (!TheTacticalView) {
 		GX_TRACE("applyCameraPan: TheTacticalView is null, dropping from(%.2f,%.2f) to(%.2f,%.2f)\n",
 		         fromPxX, fromPxY, toPxX, toPxY);
@@ -495,8 +532,8 @@ void applyCameraPan(float fromPxX, float fromPxY, float toPxX, float toPxY)
 	// confirmed, sufficient fix.
 
 	Coord3D pos = TheTacticalView->getPosition();
-	pos.x += (worldFrom.x - worldTo.x);
-	pos.y += (worldFrom.y - worldTo.y);
+	pos.x += (worldFrom.x - worldTo.x) * s_touchPanSensitivity;
+	pos.y += (worldFrom.y - worldTo.y) * s_touchPanSensitivity;
 	TheTacticalView->userSetPosition(pos);
 	TheTacticalView->forceRedraw();
 }
@@ -646,6 +683,7 @@ void handleTouchEvent(SDL_Window *window, const SDL_Event &event)
 				s_touch.phase = TouchState::UI_PRESS;
 				s_touch.downX = s_touch.lastX = px;
 				s_touch.downY = s_touch.lastY = py;
+				s_touch.maxMoveFromDown = 0.0f;
 				s_touch.downTicks = SDL_GetTicks();
 				pushMousePosition(px, py);
 				pushMouseButton(GameMessage::MSG_RAW_MOUSE_LEFT_BUTTON_DOWN, px, py);
@@ -664,6 +702,7 @@ void handleTouchEvent(SDL_Window *window, const SDL_Event &event)
 			s_touch.phase = TouchState::PENDING;
 			s_touch.downX = s_touch.lastX = px;
 			s_touch.downY = s_touch.lastY = py;
+			s_touch.maxMoveFromDown = 0.0f;
 			s_touch.downTicks = SDL_GetTicks();
 			// Move the cursor to the touch point NOW (motion clicks nothing, so the
 			// deferred-tap protection is intact). This lets the GUI process hover
@@ -734,6 +773,10 @@ void handleTouchEvent(SDL_Window *window, const SDL_Event &event)
 		if (event.tfinger.fingerID == s_touch.finger1) {
 			s_touch.lastX = px;
 			s_touch.lastY = py;
+			const float moveFromDown = SDL_fabsf(px - s_touch.downX) + SDL_fabsf(py - s_touch.downY);
+			if (moveFromDown > s_touch.maxMoveFromDown) {
+				s_touch.maxMoveFromDown = moveFromDown;
+			}
 			if (s_touch.phase == TouchState::TWOFINGER) {
 				s_touch.f1px = px;
 				s_touch.f1py = py;
@@ -866,6 +909,15 @@ void handleTouchEvent(SDL_Window *window, const SDL_Event &event)
 					// rejection) must not become a committed tap — that would be a
 					// phantom select/command/rally-point click at the cancel point.
 					if (event.type == SDL_EVENT_FINGER_CANCELED) {
+						break;
+					}
+					if (s_touch.maxMoveFromDown >= COMMAND_HOLD_MAX_MOVE_PX
+					    && !(TheInGameUI && TheInGameUI->getPendingPlaceType())) {
+						// Short drag intent that never crossed TAP_DEAD_ZONE_PX:
+						// apply its small camera movement once and, critically, emit
+						// no click/right-click command to the selected unit.
+						applyCameraPan(s_touch.downX, s_touch.downY, s_touch.lastX, s_touch.lastY);
+						s_touch.hasLastTap = false;
 						break;
 					}
 					if ((SDL_GetTicks() - s_touch.downTicks) >= LONG_PRESS_MS &&

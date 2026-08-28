@@ -16,6 +16,29 @@
     <string name="setup_button_view_logs">Просмотреть логи</string>
     <string name="setup_button_clear_game_folder">Сбросить папку с игрой</string>
 
+    <!-- TouchControlsActivity -->
+    <string name="setup_card_touch_controls">Мобильное управление</string>
+    <string name="setup_button_touch_controls">Настроить сенсорное управление</string>
+    <string name="setup_touch_controls_help">Создайте собственную панель хоткеев: добавляйте и удаляйте кнопки, назначайте клавиши и модификаторы Ctrl/Shift/Alt, перетаскивайте каждую кнопку в нужное место, регулируйте скорость прокрутки карты, размер и прозрачность. Двойной тап отправляет клавишу дважды, поэтому хоткеи Leikeze с действием по повторному нажатию продолжат работать.</string>
+    <string name="touch_editor_title">Редактор сенсорного управления</string>
+    <string name="touch_overlay_enabled">Показывать панель хоткеев</string>
+    <string name="touch_add_button">Добавить</string>
+    <string name="touch_edit_button">Изменить</string>
+    <string name="touch_delete_button">Удалить</string>
+    <string name="touch_reset_button">По умолчанию</string>
+    <string name="touch_save_button">Сохранить</string>
+    <string name="touch_apply_button">Применить</string>
+    <string name="touch_pan_speed">Скорость карты: %1$d%%</string>
+    <string name="touch_button_size">Размер кнопок: %1$d%%</string>
+    <string name="touch_button_opacity">Прозрачность: %1$d%%</string>
+    <string name="touch_selected_button">Выбрана: %1$s — перетащите её</string>
+    <string name="touch_drag_help_short">Нажмите кнопку для выбора, затем перетащите её</string>
+    <string name="touch_button_label_hint">Подпись кнопки (до 8 символов)</string>
+    <string name="touch_edit_dialog_title">Действие кнопки</string>
+    <string name="touch_select_button_first">Сначала выберите кнопку</string>
+    <string name="touch_too_many_buttons">Максимум 20 кнопок</string>
+    <string name="touch_saved">Управление сохранено. Применится при следующем запуске игры.</string>
+
     <!-- SetupActivity: status text -->
     <string name="setup_status_folder_not_set">Папка с игрой: не задана.\n</string>
     <string name="setup_status_folder_line">Папка с игрой: %1$s\n</string>
