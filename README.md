@@ -5,6 +5,7 @@
 ### Adreno 840 allocation-crash fix · DXVK/Vulkan stability · OpenAL audio fix
 
 [![Build Android APK](https://github.com/txllthemall/GeneralsZH-Android-Adreno840-Allocation-Fix/actions/workflows/build-android.yml/badge.svg)](https://github.com/txllthemall/GeneralsZH-Android-Adreno840-Allocation-Fix/actions/workflows/build-android.yml)
+[![Download APK](https://img.shields.io/badge/download-APK%20v118-FF6D00?logo=android&logoColor=white)](https://github.com/txllthemall/GeneralsZH-Android-Adreno840-Allocation-Fix/releases/download/v118/Generals-Zero-Hour-Android-Adreno840-v118.apk)
 [![Android](https://img.shields.io/badge/platform-Android-3DDC84?logo=android&logoColor=white)](https://github.com/txllthemall/GeneralsZH-Android-Adreno840-Allocation-Fix/actions/workflows/build-android.yml)
 [![ARM64](https://img.shields.io/badge/architecture-ARM64-0091BD?logo=arm&logoColor=white)](#requirements)
 [![Adreno 840](https://img.shields.io/badge/tested-Adreno%20840-76B900)](#stability-fixes)
@@ -60,10 +61,13 @@ This is a focused real-device validation, not a claim that every phone, ROM, dri
 
 ## Download and install
 
-1. Open [**Actions → Build Android APK**](https://github.com/txllthemall/GeneralsZH-Android-Adreno840-Allocation-Fix/actions/workflows/build-android.yml).
-2. Select the latest successful run and download its APK artifact.
-3. Install the APK on an ARM64 Android device. When replacing an existing build, the new `versionCode` must be higher than the installed one.
-4. Supply the game data from your legally owned Zero Hour installation when the app requests it.
+### [Download the tested Android APK — v118](https://github.com/txllthemall/GeneralsZH-Android-Adreno840-Allocation-Fix/releases/download/v118/Generals-Zero-Hour-Android-Adreno840-v118.apk)
+
+The APK is also available from the [v118 release page](https://github.com/txllthemall/GeneralsZH-Android-Adreno840-Allocation-Fix/releases/tag/v118), together with its checksum and fix summary.
+
+1. Download and open the APK on an ARM64 Android device.
+2. Install it. Version code 118 can replace any installed build with a lower version code.
+3. Supply the game data from your legally owned Zero Hour installation when the app requests it.
 
 Android may ask you to allow installation from the browser or file manager used to open the APK. No root access is required for the normal installation path.
 
