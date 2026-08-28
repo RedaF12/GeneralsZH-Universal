@@ -1656,6 +1656,11 @@ void OpenALAudioManager::notifyOfAudioCompletion(UnsignedInt audioCompleted, Uns
 	playing->m_audioEventRTS->advanceNextPlayPortion();
 	if (playing->m_audioEventRTS->getNextPlayPortion() != PP_Done) {
 		if (playing->m_type == PAT_Sample) {
+			// OpenAL keeps a stopped source attached to its buffer. Detach it before
+			// dropping the cache reference, otherwise a cache eviction during
+			// playSample() may try to delete a buffer that is still in use.
+			alSourceStop(playing->m_source);
+			alSourcei(playing->m_source, AL_BUFFER, 0);
 			closeBuffer(playing->m_bufferHandle);	// close it so as not to leak it.
 			playing->m_bufferHandle = playSample(playing->m_audioEventRTS, playing);
 
@@ -1666,6 +1671,10 @@ void OpenALAudioManager::notifyOfAudioCompletion(UnsignedInt audioCompleted, Uns
 			}
 		}
 		else if (playing->m_type == PAT_3DSample) {
+			// See the 2-D path above: the old buffer must no longer be attached
+			// before its cache reference reaches zero.
+			alSourceStop(playing->m_source);
+			alSourcei(playing->m_source, AL_BUFFER, 0);
 			closeBuffer(playing->m_bufferHandle);	// close it so as not to leak it.
 			playing->m_bufferHandle = playSample3D(playing->m_audioEventRTS, playing);
 
@@ -2903,6 +2912,11 @@ Real OpenALAudioManager::getEffectiveVolume(AudioEventRTS* event) const
 //-------------------------------------------------------------------------------------------------
 Bool OpenALAudioManager::startNextLoop(PlayingAudio* looping)
 {
+	// A stopped OpenAL source is still attached to its buffer. Detach it before
+	// closeBuffer() makes that buffer eligible for cache eviction; deleting an
+	// attached buffer raises AL_INVALID_OPERATION in OpenAL Soft.
+	alSourceStop(looping->m_source);
+	alSourcei(looping->m_source, AL_BUFFER, 0);
 	closeBuffer(looping->m_bufferHandle);
 	looping->m_bufferHandle = 0;
 
