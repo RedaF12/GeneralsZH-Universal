@@ -1,0 +1,23 @@
+diff --git a/src/dxvk/dxvk_memory.h b/src/dxvk/dxvk_memory.h
+--- a/src/dxvk/dxvk_memory.h
++++ b/src/dxvk/dxvk_memory.h
+@@ -671,4 +671,10 @@ namespace dxvk {
+     template<typename... Args>
+     DxvkResourceAllocation* create(Args&&... args) {
++#ifdef __ANDROID__
++      // Diagnostic Android path: keep DxvkResourceAllocation objects out of
++      // the pool whose embedded free list is being corrupted on device.
++      return new DxvkResourceAllocation(std::forward<Args>(args)...);
++#else
+       return new (alloc()) DxvkResourceAllocation(std::forward<Args>(args)...);
++#endif
+     }
+@@ -676,4 +682,8 @@ namespace dxvk {
+     void free(DxvkResourceAllocation* allocation) {
++#ifdef __ANDROID__
++      delete allocation;
++#else
+       allocation->~DxvkResourceAllocation();
+       recycle(allocation);
++#endif
+     }
