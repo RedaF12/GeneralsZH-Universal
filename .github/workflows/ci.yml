@@ -1,16 +1,13 @@
-name: GeneralsX CI
+name: Desktop CI (manual only)
 
 permissions:
   contents: read
   pull-requests: write
 
 on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
+  # This fork is Android-first. Keep the upstream desktop matrix available
+  # for an explicit maintainer run, but never spend Actions minutes on it
+  # when mobile code is pushed or reviewed.
   workflow_dispatch:
 
 concurrency:
