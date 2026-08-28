@@ -1,336 +1,136 @@
-# Command & Conquer Generals: Zero Hour — Android (+ macOS, iOS & iPadOS)
+<div align="center">
 
-> **This is an unofficial, community-made fan port.** It is not affiliated
-> with, endorsed by, or produced by Electronic Arts, Westwood Studios, or any
-> other rights holder, and it is not an official Google Play / App Store
-> release. It's a fork maintained by volunteers (see
-> [Lineage & credits](#lineage--credits)) built from EA's own GPL v3 source
-> release. If you saw this described anywhere as an "official" release, that's
-> wrong — please don't spread it further.
+# Command & Conquer: Generals — Zero Hour for Android
 
-<img width="500" height="281" alt="IMG_3457_500" src="https://github.com/user-attachments/assets/aeaf6692-36e6-40c8-b9f8-8066d014ec4b" />
+### Adreno 840 allocation-crash fix · DXVK/Vulkan stability · OpenAL audio fix
 
-**Zero Hour running natively on Android** — campaign, skirmish, Generals Challenge,
-and full online multiplayer (GeneralsOnline: lobby, custom match, quickmatch,
-persona/stats, friends & social), with touch controls built for RTS (tap-select,
-drag-box, long-press deselect, two-finger pan, pinch/anchor zoom). No emulation:
-this is the real 2003 engine compiled for ARM64, rendering DirectX 8 →
-[DXVK](https://github.com/doitsujin/dxvk) → **Vulkan native** — no translation
-layer beyond DXVK itself, since Android speaks Vulkan directly.
+[![Build Android APK](https://github.com/txllthemall/GeneralsZH-Android-Adreno840-Allocation-Fix/actions/workflows/build-android.yml/badge.svg)](https://github.com/txllthemall/GeneralsZH-Android-Adreno840-Allocation-Fix/actions/workflows/build-android.yml)
+[![Android](https://img.shields.io/badge/platform-Android-3DDC84?logo=android&logoColor=white)](https://github.com/txllthemall/GeneralsZH-Android-Adreno840-Allocation-Fix/actions/workflows/build-android.yml)
+[![ARM64](https://img.shields.io/badge/architecture-ARM64-0091BD?logo=arm&logoColor=white)](#requirements)
+[![Adreno 840](https://img.shields.io/badge/tested-Adreno%20840-76B900)](#stability-fixes)
+[![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE.md)
 
-The same codebase also runs on Apple Silicon Macs, iPhone, and iPad (DirectX 8 →
-DXVK → [MoltenVK](https://github.com/KhronosGroup/MoltenVK) → Metal) — that's
-where this port started, and it's still maintained, but active development has
-shifted to Android, which is now the most complete and most heavily
-real-device-tested target.
+**An Android-focused stability fork of GeneralsX for running Zero Hour on modern Snapdragon/Adreno devices.**
 
-Built on EA's GPL v3 source release, standing on a chain of community work —
-[TheSuperHackers](https://github.com/TheSuperHackers/GeneralsGameCode),
-[Fighter19's original Unix port](https://github.com/Fighter19/CnC_Generals_Zero_Hour), and
-[fbraz3/GeneralsX](https://github.com/fbraz3/GeneralsX) — this fork adds the
-Android and iOS/iPadOS ports, GeneralsOnline multiplayer, and a set of engine
-fixes. See [Lineage & credits](#lineage--credits) for who built what. The
-original GeneralsX README lives on the `upstream-main` branch.
+<img src="https://github.com/user-attachments/assets/aeaf6692-36e6-40c8-b9f8-8066d014ec4b" alt="Command & Conquer Generals: Zero Hour running on Android" width="820">
 
-**No game assets are included or distributed.** You need your own copy
-([Steam](https://store.steampowered.com/app/2732960/), ~$5 on sale).
+</div>
 
-## Status
+> [!IMPORTANT]
+> This repository contains engine source code only. It does **not** include Command & Conquer game data, artwork, music, videos, or other proprietary assets. You must own a legal copy of *Command & Conquer: Generals — Zero Hour* and provide its data files yourself.
 
-| Feature | Status |
+## Why this fork exists
+
+The upstream project supports several operating systems. This fork has one priority: make the **Android version stable and practical on real phones**, with special attention to Adreno 840 and the Qualcomm Vulkan driver.
+
+Desktop source code is retained where Android shares it, so the mobile build is not broken by deleting common engine components. Desktop CI is manual-only; automatic development and validation are focused on Android.
+
+## Stability fixes
+
+### DXVK allocation crash
+
+The Android DXVK path could corrupt its resource-allocation pool and repeatedly report:
+
+```text
+DxvkResourceAllocationPool: corrupted free list head
+```
+
+This fork applies an Android-only allocation fallback that bypasses the affected pooled free-list path. Other platforms keep their original allocator behavior.
+
+### Qualcomm/Adreno driver crashes
+
+Allocation corruption eventually surfaced as native crashes inside the stock Qualcomm `vulkan.adreno.so` driver. Removing the corrupted allocator path prevents invalid resource state from reaching the driver while keeping the existing Vulkan renderer and DXVK integration intact.
+
+### OpenAL audio cleanup
+
+Reused OpenAL sources previously kept old buffers attached while the buffer cache attempted to delete them, causing repeated `alDeleteBuffers` failures. Sources are now stopped and detached before cache eviction in 2D, 3D, and looping playback paths.
+
+### Real-device validation
+
+The current fix set was built as Android version code **118**, installed over USB, and tested in live gameplay on the target Adreno device.
+
+| Signal checked | Result |
+|---|---:|
+| DXVK corrupted free-list reports | **0** |
+| OpenAL `alDeleteBuffers` failures | **0** |
+| Engine throw markers | **0** |
+| Native crashes | **0** |
+
+This is a focused real-device validation, not a claim that every phone, ROM, driver, map, or mod is already perfect. Useful failure reports are welcome.
+
+## Download and install
+
+1. Open [**Actions → Build Android APK**](https://github.com/txllthemall/GeneralsZH-Android-Adreno840-Allocation-Fix/actions/workflows/build-android.yml).
+2. Select the latest successful run and download its APK artifact.
+3. Install the APK on an ARM64 Android device. When replacing an existing build, the new `versionCode` must be higher than the installed one.
+4. Supply the game data from your legally owned Zero Hour installation when the app requests it.
+
+Android may ask you to allow installation from the browser or file manager used to open the APK. No root access is required for the normal installation path.
+
+## Requirements
+
+- 64-bit Android device (`arm64-v8a`)
+- Vulkan-capable GPU and driver
+- A legally owned Zero Hour installation for game data
+- Enough free storage for the APK, native libraries, and game files
+
+The primary target is **Snapdragon with Adreno 840**. Other Vulkan-capable ARM64 devices may work, but should be treated as unverified until tested.
+
+## Build the APK
+
+The supported build path is the existing GitHub Actions workflow—there is no duplicate Android workflow in this fork.
+
+1. Open [**Build Android APK**](https://github.com/txllthemall/GeneralsZH-Android-Adreno840-Allocation-Fix/actions/workflows/build-android.yml).
+2. Choose **Run workflow**.
+3. Keep the `android-vulkan` preset.
+4. Set a `version_code` higher than the build already installed on your phone.
+5. Optionally set `version_name` and enable release publishing.
+
+The workflow uses pinned Android tooling and builds the engine, DXVK integration, native dependencies, and APK in one reproducible job.
+
+## Current scope
+
+| Area | Status |
 |---|---|
-| Campaign / Skirmish / Generals Challenge | ✅ Working |
-| Rendering (DirectX 8 → DXVK → Vulkan) | ✅ Working — native Vulkan 1.3 (Adreno 7xx/8xx), adaptive Vulkan 1.1 fallback (Mali-G76/G57 and similar) |
-| Audio | ✅ Working (OpenAL, OpenSL/AAudio backends) |
-| Video / cutscenes | ✅ Working (FFmpeg) |
-| Touch controls | ✅ Working (tap/drag/long-press/pinch — see [Touch controls](#touch-controls)) |
-| Online multiplayer (GeneralsOnline) | ✅ Working — real matches between real players, P2P transport |
-| macOS / iOS / iPadOS build | ✅ Working (campaign/skirmish/Challenge; no GeneralsOnline there yet) |
-| Performance on Vulkan-1.1-only GPUs (Mali) | ⚠️ Playable, but CPU-bound — expect lower FPS and occasional freezes on weaker/older phones |
+| Android ARM64 build | Active priority |
+| Vulkan / DXVK | Active priority |
+| Adreno 840 stability | Tested target |
+| Touch controls | Supported by the Android port |
+| Audio | OpenAL lifecycle fix applied |
+| Linux / macOS / Windows CI | Manual only |
 
-- **Android**: primary target. Grab a prebuilt APK from
-  [Releases](../../releases/latest), or build via GitHub Actions (**Actions
-  tab → Build Android → Run workflow**) — no local toolchain needed either
-  way. Campaign, skirmish, and Generals Challenge run natively. **Online
-  multiplayer works, including actual matches**: GeneralsOnline (a from-scratch
-  NGMP-based backend, not the long-dead GameSpy servers) drives account login,
-  the multiplayer lobby, Custom Match (create/browse/join, live room + player
-  lists, chat), Quickmatch, My Persona (stats/rank), and Communicator
-  (friends/social) — and matches now actually start and play: a P2P transport
-  (Valve's [GameNetworkingSockets](https://github.com/ValveSoftware/GameNetworkingSockets),
-  built from source for Android with native ICE/STUN/TURN, no external WebRTC
-  dependency) replaces the legacy transport that internet games never had a
-  real implementation for. This has been shaken out against real players and
-  real devices, including bug reports from outside testers via this repo's
-  [issue tracker](../../issues) — see
-  [`docs/port/ANDROID_PORT.md`](docs/port/ANDROID_PORT.md) for the device/driver
-  matrix and the full bring-up log.
-- **macOS / iOS / iPadOS**: fully working (campaign, skirmish, Generals
-  Challenge), maintained, not currently receiving the same volume of new work.
-  GeneralsOnline multiplayer has not been ported to these platforms yet — the
-  Android build is where that backend was built.
+## Known limitations
 
-## Touch controls
+- Some custom WAV files can still produce an FFmpeg `wrong sample_count` warning. It did not crash the validated gameplay session, but malformed audio metadata should eventually be cleaned up at the asset level.
+- Vulkan behavior can vary between Qualcomm driver releases and vendor ROM updates.
+- Mods and custom maps may expose engine paths not covered by the current device test.
+- The project is under active development; keep backups of saves and custom data.
 
-The original game is mouse-driven (left-click-centric); every gesture below
-maps straight onto the same mouse events, so the whole UI (sidebar, minimap,
-unit portraits) responds exactly like it does on PC — just tap instead of
-click.
+## Reporting a problem
 
-| Gesture | Action |
-|---|---|
-| Tap | Left-click — select a unit/building, issue a command, or press a UI button |
-| Double-tap (two quick taps, same spot) | Left double-click — select all of that unit type on screen |
-| Press and hold, then drag | Left-button drag — selection box |
-| Long-press, no movement (~0.6s) | Right-click |
-| Two fingers: one held still, the other dragged mostly vertically | Zoom (mouse wheel) |
-| Two fingers moving together | Right-button drag — camera pan |
-| Two fingers tapped together, no movement | Right-click (quick) |
+Open an [issue](https://github.com/txllthemall/GeneralsZH-Android-Adreno840-Allocation-Fix/issues) and include:
 
-Each gesture is only classified once real intent is clear (a short delay/
-distance threshold), so an ordinary tap never misfires into a selection box,
-and pan/zoom don't flicker into each other even when both fingers don't move
-in perfect lockstep.
+- phone model, SoC/GPU, Android version, and ROM;
+- whether the stock Qualcomm driver or a custom driver was used;
+- the exact APK version code;
+- steps to reproduce the problem;
+- a complete Android log captured around the crash.
 
-## What this port actually involved
+Please do not upload proprietary game files with a report.
 
-"Porting" undersells how weird this journey was, so here's the honest shape of it.
-The lineage below built the foundation: EA's source release, the community's
-modernization, Fighter19's original Unix port, GeneralsX's macOS/Linux work.
-None of that included a mobile online-multiplayer backend, or Android at all —
-and both are hostile territory for a 2003 Windows RTS:
+<details>
+<summary><strong>Коротко по-русски</strong></summary>
 
-- **GameSpy is dead. The retail multiplayer stack assumes it isn't.** Zero
-  Hour's entire online layer — matchmaking, lobbies, buddy lists, stats — was
-  built on GameSpy SDK calls to servers EA shut down over a decade ago. Getting
-  multiplayer working again meant building a real backend (GeneralsOnline,
-  NGMP-based: REST + WebSocket, its own auth/session/lobby/stats/social
-  services) and re-wiring the original `.wnd` UI screens and GUI callbacks —
-  largely untouched since 2003 — to talk to it instead, one menu at a time
-  (Welcome screen, Custom Match, Quickmatch, My Persona, Communicator).
-- **Async callbacks + screen teardown is a loaded gun.** Almost every real
-  crash chased down on real devices during multiplayer bring-up turned out to
-  be the same shape: an HTTP or WebSocket completion callback captured a raw
-  pointer (a `GameWindow*`, a roster entry, a listbox) that was still valid
-  when the request was *sent*, but the user had already backed out of the
-  screen — or a second refresh had already torn it down — by the time the
-  response landed. The fix pattern that recurred: capture a stable ID, not a
-  pointer, and re-resolve (or bail) inside the callback.
-- **The engine assumes a writable filesystem wherever it lives, and a mouse.**
-  Android's scoped storage and SDL3's raw touch events needed the same kind of
-  rerouting and gesture-to-mouse translation work the iOS port pioneered — tap
-  defers until the 2003 GUI processes hover, a drag becomes a selection box or
-  a camera pan depending on how it started, one held finger + a second moving
-  vertically is zoom (not classic two-finger pinch, which fought camera pan),
-  and a double-tap now does what a PC double-click always did (select all of
-  one unit type on screen).
-- **Old data, new parser, sharp edges.** Zero Hour's `.ini` data layers on top
-  of base Generals data, and the two games were split into separate build
-  targets at some point in this codebase's history — with a couple of
-  genuinely-still-used tokens (`DamageType=FLESHY_SNIPER`, `KindOf=AIRFIELD`)
-  accidentally compiled out of the Zero Hour build in that split. Both looked
-  like "someone's mod is doing something weird" until traced back to a
-  preprocessor guard on the wrong side of an `#if`.
-- **And a memory-corruption hunt that went all the way to the allocator.**
-  Unresolved-crash-PC segfaults with no clean call stack, days apart, no
-  obvious pattern — eventually traced to the engine's global `operator
-  delete` override having no way to tell "one of ours" from a pointer a
-  separately-linked `.so` (OpenAL, DXVK) allocated through its own copy of
-  `new`. Fixed with an ownership cookie instead of blind trust.
+Это Android-ориентированный форк GeneralsX для стабильного запуска Zero Hour на современных Snapdragon/Adreno. В нём устранён проблемный DXVK allocation-pool на Android и исправлено освобождение OpenAL-буферов. Сборка проверена в реальном бою на целевом устройстве: повторов ошибки free list, ошибок удаления аудиобуферов и нативных падений в тесте не было.
 
-**→ The Android engineering log: [docs/port/ANDROID_PORT.md](docs/port/ANDROID_PORT.md)**
-**→ The macOS/iOS war stories: [Porting Playbook §8 — the bug archaeology](docs/port/PORTING_PLAYBOOK.md#8-post-ship-bug-hunts-junejuly-2026--the-archaeology-section)**
-**→ The complete macOS/iOS engineering log: [docs/port/PORTING_PLAYBOOK.md](docs/port/PORTING_PLAYBOOK.md)**
-**→ How to do this to another game: [docs/port/PORTING_PATTERNS.md](docs/port/PORTING_PATTERNS.md)**
+Игровых ресурсов в репозитории нет — нужна собственная легальная копия Zero Hour. APK собирается существующим workflow **Build Android APK** во вкладке Actions.
 
-Worth saying plainly: this was a **human + AI collaboration**. The engineering —
-the C++, the cross-builds, the device debugging, the multiplayer backend — was
-done by [Claude Code](https://claude.com/claude-code) (Anthropic's Claude),
-directed and playtested by a human who described symptoms like *"the lobby
-list is empty"* and *"it crashes right after I press Back"* and owned every
-decision. Neither half ships this alone: one of us can't write C++, and the
-other can't play-test on a real phone.
+</details>
 
-## Quick start — Android
+## Project lineage and credits
 
-Same engine, one translation layer fewer than iOS: DirectX 8 → DXVK →
-**Vulkan native** (no MoltenVK). DXVK's own minimum was lowered from Vulkan
-1.3 to **Vulkan 1.1**, with an adaptive feature/extension fallback path, so
-it now runs on a much wider range of hardware: Snapdragon with Adreno
-7xx/8xx (native 1.3), older Adreno below 1.3 (via an optional bundled Mesa
-Turnip fallback driver), and Vulkan-1.1-only Arm Mali GPUs (Mali-G76,
-Mali-G57, and similar Bifrost/Valhall chips — e.g. the Redmi Note 8 Pro) are
-all supported. A device with no usable Vulkan driver at all still gets a
-clear on-screen message instead of silently closing. Frame rate on
-Vulkan-1.1-only / older-CPU devices is CPU-bound, not GPU-bound — expect
-lower FPS and occasional freezes on weaker phones; see the doc for the full
-device/driver matrix and driver-replacement options.
+This work builds on the open-source Command & Conquer code release and the GeneralsX/Thyme community effort. Credit belongs to the upstream maintainers and contributors whose work made the Android port possible, including [MYSOREZ/GeneralsZH-Android-Port](https://github.com/MYSOREZ/GeneralsZH-Android-Port) and its upstream history.
 
-**Simplest option — no build, no CI**: grab a prebuilt APK from the
-[Releases page](../../releases/latest) and sideload it.
+Command & Conquer and related names are trademarks of Electronic Arts Inc. This is an unofficial, community-maintained project and is not endorsed by or affiliated with Electronic Arts.
 
-**No local toolchain needed either** — push to a `claude/**` branch (or run it
-manually) and GitHub Actions builds the APK: **Actions tab → Build Android →
-Run workflow**. Every CI build is signed with the same committed debug key and
-gets an increasing versionCode, so you can install a newer run **over** an
-older one without uninstalling. (On a fork, enable Actions once: Actions tab →
-"I understand my workflows, go ahead and enable them".) Download the APK
-artifact from the run and install it.
-
-**No adb needed either, for setup or logs**: the APK installs a second icon,
-**"GeneralsZH Setup"**, with an in-app folder picker (point it at wherever
-you copied your own game files — Downloads, an SD card, anywhere) and a log
-viewer with Clear/Share buttons. See [docs/port/ANDROID_PORT.md §4](docs/port/ANDROID_PORT.md#4-game-data-and-first-run--the-in-app-setup-flow-no-adb-no-pc-needed)
-for the full first-run walkthrough. A default log is small and readable —
-if a bug report needs more (frame-timing breakdown, full trace, DXVK HUD
-counters, Vulkan validation), see [**Diagnostic marker files**](docs/port/ANDROID_PORT.md#diagnostic-marker-files-opt-in-extra-logging)
-for which plain-text file to drop into the game folder and what it turns on.
-
-Building locally instead needs the Android NDK (r26+), vcpkg, meson/ninja:
-
-```sh
-cd GeneralsX
-git submodule update --init references/fbraz3-dxvk
-export ANDROID_NDK_HOME=~/Android/Sdk/ndk/<version>
-./scripts/build/android/build-android-zh.sh        # game -> libmain.so, DXVK -> .so, verified
-./scripts/build/android/package-android-zh.sh --install
-```
-
-**→ The full guide (device/driver matrix, storage layout, multiplayer
-architecture, bring-up log): [docs/port/ANDROID_PORT.md](docs/port/ANDROID_PORT.md)**
-
-## Quick start — macOS
-
-Prerequisites (one time):
-
-```sh
-# Toolchain
-xcode-select --install
-brew install cmake ninja meson pkgconf
-brew install --cask steamcmd
-
-# vcpkg (full clone — a shallow clone breaks manifest baselines)
-git clone https://github.com/microsoft/vcpkg ~/vcpkg && ~/vcpkg/bootstrap-vcpkg.sh
-export VCPKG_ROOT=~/vcpkg          # add to your shell profile
-
-# LunarG Vulkan SDK (NOT the Homebrew cask) — https://vulkan.lunarg.com/sdk/home
-export VULKAN_SDK=$HOME/VulkanSDK/<version>/macOS   # add to your shell profile
-```
-
-Clone, build, get assets, play:
-
-```sh
-git clone https://github.com/ammaarreshi/Generals-Mac-iOS-iPad.git GeneralsX
-cd GeneralsX
-./scripts/build/macos/build-macos-zh.sh     # checks deps, configures, builds
-./scripts/build/macos/deploy-macos-zh.sh    # creates ~/GeneralsX/GeneralsZH + run.sh
-./scripts/get-assets.sh <your_steam_username>   # fetches game data you own
-cd ~/GeneralsX/GeneralsZH && ./run.sh -win
-```
-
-## Quick start — iPhone / iPad
-
-On top of the macOS prerequisites: full Xcode (signed into your Apple ID),
-`brew install xcodegen`, and a (free or paid) Apple Developer team.
-
-```sh
-cd GeneralsX
-git submodule update --init references/fbraz3-dxvk   # iOS DXVK is built from this + Patches/dxvk-ios.patch
-./scripts/build/ios/fetch-moltenvk.sh                # pinned MoltenVK.framework (checksummed)
-./scripts/build/ios/stage-fonts.sh                   # Liberation fonts, renamed as the game expects
-cmake --preset ios-vulkan
-cmake --build build/ios-vulkan --target z_generals
-GX_TEAM_ID=<your-team-id> GX_BUNDLE_ID=com.you.generalszh \
-    ./scripts/build/ios/package-ios-zh.sh --install  # assembles, signs, installs
-```
-
-Find your team id in Xcode → Settings → Accounts. Assets ship inside the app
-bundle (self-contained install); `--dev` skips the ~2.7 GB copy for fast code
-iteration.
-
-## Where things are
-
-| Path | What it is |
-|---|---|
-| [`docs/port/ANDROID_PORT.md`](docs/port/ANDROID_PORT.md) | The Android port: architecture, GeneralsOnline multiplayer backend, device/driver matrix, build + bring-up log |
-| [`docs/port/PORTING_PLAYBOOK.md`](docs/port/PORTING_PLAYBOOK.md) | The complete macOS/iOS engineering log: every failure mode, root cause, fix — start with [§8, the bug archaeology](docs/port/PORTING_PLAYBOOK.md#8-post-ship-bug-hunts-junejuly-2026--the-archaeology-section) |
-| `docs/port/PORTING_PATTERNS.md` | Generalized methodology for porting classic Windows games to Apple/mobile platforms |
-| `docs/port/RELEASE_CHECKLIST.md` | Gate for public release |
-| `scripts/get-assets.sh` | Steam asset fetcher (your own copy; app 2732960) |
-| `scripts/build/android/`, `scripts/build/macos/`, `scripts/build/ios/` | Build, deploy, packaging pipelines |
-| `android/` | Gradle shell app (SDLActivity) that packages `libmain.so` + DXVK into an APK, plus the Setup/FolderPicker/LogViewer/GeneralsOnline-account activities |
-| `ios/` | XcodeGen signing-stub project + `ios/config/` (staged Options.ini, dxvk.conf) |
-| `GeneralsMD/Code/GameEngine/Source/GameNetwork/GeneralsOnline/` | The GeneralsOnline multiplayer client: auth, lobby, rooms, stats, matchmaking, social — talks to a REST + WebSocket backend, not GameSpy |
-| `Patches/dxvk-android.patch`, `Patches/dxvk-ios.patch` | DXVK changes the Android/iOS d3d8/d3d9 `.so`/dylib builds are built from |
-
-## Known issues
-
-- Long sessions on iPad can be killed by iOS for memory (~3 GB+ resident); the app
-  exits to the home screen with no dialog. Session logs (current + previous) are in
-  the Files app under the game's folder. Under investigation.
-- Backgrounding mid-game can occasionally crash on iOS — the lifecycle pause covers
-  the common paths; a rare race remains. Save often.
-- Android on Vulkan-1.1-only GPUs (Mali-G76, Mali-G57, and similar) is
-  CPU-bound: expect lower frame rates and occasional freezes on weaker/older
-  phones, especially during map/mission loading, and please share logs if you
-  hit something worse than that — see
-  [docs/port/ANDROID_PORT.md §2](docs/port/ANDROID_PORT.md#2-the-device--driver-matrix-read-this-before-filing-black-screen-bugs)
-  for the device/driver matrix.
-- Android multiplayer is under active real-device shakeout — most reported crashes
-  have traced to a handful of recurring bug classes (see the "what this port
-  actually involved" section above) and get fixed fast, but if something's still
-  rough, check or file an issue. Matches now load and play (P2P transport,
-  camera, and the load-screen crash chain all confirmed working solo, real
-  device); cross-device matches against another live player are the next
-  thing being shaken out.
-
-## What's next: Renegade 👀
-
-Generals had a chain of giants to stand on. **Command & Conquer: Renegade** — EA's
-2002 FPS from the same GPL source release — has far less: no native macOS or iOS
-build of the W3D engine has ever shipped (Mac players today go through Wine-based
-compatibility layers). The [OpenW3D](https://github.com/w3dhub/OpenW3D) community
-project has real cross-platform groundwork — a DXVK wrapper scaffold and SDL3 build
-plumbing — with Mac/Linux on its roadmap, and that groundwork is exactly what we
-built on.
-
-Same methodology as this repo, much deeper water: OpenW3D's Win32 compat scaffold
-expanded by ~3,000 lines (the engine calls raw Windows APIs for file finding,
-keyboard state, COM), a case-sensitivity strategy for twenty thousand asset paths,
-the DXVK/MoltenVK renderer bring-up, the audio/video stack, and FPS touch controls.
-It's playable today — campaign, cinematics, mission scripts — on a Mac and an
-iPhone. For scale: this Generals port added ~2,200 lines on top of GeneralsX;
-Renegade needed ~6,700 on top of the Windows-only source.
-
-Repo drops soon, with the OpenW3D lineage credited the way this repo credits its
-chain. Same rules: GPL v3, bring your own copy, full engineering log.
-
-## Lineage & credits
-
-This port is the newest link in a long chain, and the earlier links did foundational
-work that this repo inherits everywhere:
-
-- **Westwood / EA Pacific** — the game; **EA** — the GPL v3 source release
-- **[TheSuperHackers/GeneralsGameCode](https://github.com/TheSuperHackers/GeneralsGameCode)** —
-  the community mainline: build modernization, VC6→modern toolchain, and much of the
-  cross-platform groundwork, including the FFmpeg video backend authored by
-  **[feliwir](https://github.com/feliwir)** (of [OpenSAGE](https://github.com/OpenSAGE/OpenSAGE)),
-  who also authored the OpenAL audio device work this port's audio stack builds on
-- **[Fighter19/CnC_Generals_Zero_Hour](https://github.com/Fighter19/CnC_Generals_Zero_Hour)** —
-  the original Unix/64-bit port: SDL3 platform management, C++17
-  filesystem/threading, Freetype/Fontconfig text rendering, and the DXVK approach
-  this renderer path descends from
-- **[fbraz3/GeneralsX](https://github.com/fbraz3/GeneralsX)** — the macOS/Linux port
-  this fork builds on directly, integrating and extending the above
-- **[tarek369/GeneralsZH-Android](https://github.com/tarek369/GeneralsZH-Android)** —
-  an independent, parallel Android port of the same lineage; several real bugs in
-  this port (a duplicate-symbol build break, an INI-parsing gap) were cross-checked
-  and traced faster thanks to its published engineering log
-- **This fork** — the Android port (GeneralsOnline multiplayer backend, touch
-  controls, in-app Setup/log-viewer flow, device bring-up) and the iOS/iPadOS
-  port (arm64-ios cross-build, DXVK-on-iOS, touch controls, app lifecycle,
-  packaging), plus engine fixes throughout, offered upstream
-- **DXVK, MoltenVK, SDL, OpenAL Soft, FFmpeg, Liberation Fonts** — the load-bearing walls
-
-Engine code **GPL v3** (EA's source release → the chain above → this fork). Game
-assets: not included, not licensed here.
+Source code is distributed under the terms in [LICENSE.md](LICENSE.md). Additional bundled dependencies retain their respective licenses.
