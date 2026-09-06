@@ -587,6 +587,26 @@ ICoord2D touchPixel(float x, float y)
 	ICoord2D p;
 	p.x = (Int)x;
 	p.y = (Int)y;
+
+	// GeneralsX @bugfix Android port 06/09/2026 Also publish it as the position
+	// preview drawing reads. InGameUI::handleRadiusCursor() (the ability radius)
+	// and InGameUI::handleBuildPlacements() (the placement icon) take it straight
+	// from TheMouse->getMouseStatus()->pos every frame in preDraw(), and with
+	// nothing writing it on a touch device both drew in the top-left corner.
+	//
+	// setTouchCursorPos() writes that field and nothing else -- no
+	// MSG_RAW_MOUSE_POSITION is emitted here, and none should be. Every touch that
+	// legitimately produces a position event already sends one through
+	// pushMousePosition(); the events stay exactly as they were.
+	//
+	// This function is on the path of every touch-derived message, so it is the
+	// one place that cannot be forgotten when a new gesture is added.
+	if (TheMouse) {
+		SDL3Mouse *sdlMouse = dynamic_cast<SDL3Mouse *>(TheMouse);
+		if (sdlMouse) {
+			sdlMouse->setTouchCursorPos(p.x, p.y);
+		}
+	}
 	return p;
 }
 
@@ -616,7 +636,6 @@ Bool isRealUiHit(GameWindow *hit)
 {
 	return hit != nullptr && BitIsSet(hit->winGetStyle(), GWS_PUSH_BUTTON);
 }
-
 
 // Hover/position hint -- WindowXlat.cpp uses this to set GUI hilite state,
 // SelectionXlat.cpp uses it to build the selection-box drag region, and
@@ -1219,37 +1238,6 @@ void applyPendingCameraMotion()
 }
 
 } // anonymous namespace
-
-// GeneralsX @feature Android port 06/09/2026 Is a finger being HELD on a button
-// right now, and where did it land? Asked once a frame by
-// SDL3Mouse::createStreamMessages() (mobile build) so a long press can raise the
-// button's description, which needs the engine to see the pointer sitting still
-// -- something a touch device never produces on its own, since a still finger
-// generates no events at all.
-//
-// Deliberately a question the touch layer answers from live state rather than a
-// flag it sets and clears. A first attempt at this published the last touch as a
-// persistent cursor position and had to be reverted: a position that outlives the
-// finger gives the game a pointer that hovers menu buttons with nothing on the
-// screen and, left near a viewport edge, edge-scrolls the map forever (the
-// release path below has fought that exact behaviour before). Answering from
-// s_touch.phase means the moment the finger lifts, the phase is no longer
-// UI_PRESS and the position stops being published -- there is no transition left
-// to forget to handle.
-//
-// UI_PRESS only, never the battlefield: hover means something over a button and
-// nothing at all over terrain, and the edge-scroll hazard lives entirely in the
-// latter.
-Bool SDL3TouchUiHoldAnchor(Int &x, Int &y)
-{
-	if (s_touch.phase != TouchState::UI_PRESS) {
-		return FALSE;
-	}
-	x = (Int)s_touch.downX;
-	y = (Int)s_touch.downY;
-	return TRUE;
-}
-
 #endif // SAGE_MOBILE_PLATFORM
 
 namespace {
