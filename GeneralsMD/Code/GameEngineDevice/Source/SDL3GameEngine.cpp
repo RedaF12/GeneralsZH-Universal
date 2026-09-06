@@ -684,32 +684,6 @@ void handleTouchEvent(SDL_Window *window, const SDL_Event &event)
 		}
 	}
 
-	// GeneralsX @bugfix Android port 06/09/2026 Publish the live finger position
-	// as the value preview drawing reads. InGameUI::handleRadiusCursor() (the
-	// ability radius) and InGameUI::handleBuildPlacements() (the placement icon)
-	// take it straight from TheMouse->getMouseStatus()->pos every frame in
-	// preDraw(), and with nothing writing it on a touch device both drew in the
-	// top-left corner.
-	//
-	// setTouchCursorPos() writes that field and NOTHING else. No
-	// MSG_RAW_MOUSE_POSITION is emitted here and none should be: that message is
-	// the event driving GUI hilite, the selection box and the edge-scroll anchor,
-	// and two earlier attempts that emitted one every frame had to be reverted for
-	// giving the game a cursor that outlived the finger.
-	//
-	// Here, at the top of the real-event handler, and deliberately not inside
-	// touchPixel(): that helper is also called with synthesized coordinates -- the
-	// touch-down point replayed at release, a pinch centroid, and the window
-	// centre used to park the edge-scroll anchor -- and the preview would jump to
-	// those instead of tracking the finger. This runs only for an actual
-	// SDL_EVENT_FINGER_* with the finger's own coordinates.
-	if (TheMouse) {
-		SDL3Mouse *sdlMouse = dynamic_cast<SDL3Mouse *>(TheMouse);
-		if (sdlMouse) {
-			sdlMouse->setTouchCursorPos((Int)px, (Int)py);
-		}
-	}
-
 	// GeneralsX @feature Android port 02/08/2026 Unconditional per-event trace
 	// -- reported "panning freezes mid-drag near my command center/units,
 	// have to lift and re-place my finger". Static review of applyCameraPan()
