@@ -49,13 +49,14 @@
 
     <!-- SetupActivity: Render Backend card -->
     <string name="setup_card_render_backend">Moteur de rendu</string>
-    <string name="setup_render_backend_help">Quelle API graphique le jeu utilise. Prend effet au prochain lancement du jeu, pas immédiatement.\n\nVulkan (recommandé) : le backend d\'origine, le plus testé (via la traduction Direct3D 8 vers Vulkan de DXVK). La plupart des téléphones modernes (séries Snapdragon 8 Gen/Elite et similaires) fonctionnent très bien avec leur pilote d\'origine, sans configuration supplémentaire. La section « Pilote Vulkan personnalisé » ci-dessous est facultative et ne concerne que certaines anciennes puces Adreno dont le pilote d\'origine indique une version inférieure à Vulkan 1.1 — elle n\'est appliquée automatiquement que sur les téléphones qui en ont réellement besoin.\n\nOpenGL ES : une solution de repli native et expérimentale pour les téléphones qui ne peuvent pas du tout utiliser Vulkan (GPU très anciens ou non pris en charge). Fonctionne presque partout, mais nettement plus lent que les deux autres options — à considérer comme un dernier recours, pas un premier choix.\n\nOpenGL ES + ANGLE : le même moteur de rendu expérimental, mais intégré avec ANGLE de Google et acheminé à travers celui-ci (traduit en Vulkan) au lieu du pilote GLES intégré de votre téléphone. Cette version d\'ANGLE est intégrée directement dans cette application — contrairement à la fonctionnalité ANGLE propre au système Android, elle ne nécessite aucune version minimale d\'Android ni interrupteur séparé quelque part dans les paramètres Android de votre téléphone. Nettement plus rapide qu\'OpenGL ES seul une fois lancé, mais peut brièvement ralentir la première fois qu\'un menu avec beaucoup de contrôles (comme les options d\'escarmouche) est ouvert, le temps qu\'ANGLE compile ce dont il a besoin ; le ralentissement disparaît de lui-même et ne revient pas tant que vous ne quittez pas ce menu pour le rouvrir.\n\nLes sections « Pilote Vulkan personnalisé » et « Configuration DXVK » ci-dessous ne s\'affichent que lorsque Vulkan est sélectionné.</string>
+    <string name="setup_render_backend_help">Quelle API graphique le jeu utilise. Prend effet au prochain lancement du jeu, pas immédiatement.\n\nOpenGL ES (par défaut) : un moteur de rendu natif écrit pour ce portage. Il est par défaut parce qu\u0027il fonctionne sur tous les appareils testés jusqu\u0027ici, y compris ceux où Vulkan affiche des graphismes corrompus. Commencez ici et ne changez que si vous avez une raison.\n\nOpenGL ES + ANGLE : le même moteur, mais passant par ANGLE de Google, qui le traduit en Vulkan, au lieu du pilote GLES de votre téléphone. ANGLE est intégré à cette application : ni version minimale d\u0027Android ni réglage système requis. Souvent plus rapide une fois lancé, même si un menu chargé (options d\u0027escarmouche) peut saccader à sa première ouverture pendant qu\u0027ANGLE compile ce dont il a besoin ; cela ne se reproduit pas tant que vous ne quittez pas puis rouvrez ce menu.\n\nVulkan : le backend d\u0027origine, via la traduction Direct3D 8 vers Vulkan de DXVK. Plus rapide que les autres sur les téléphones dont le pilote le gère bien, typiquement les Snapdragon récents. Mais tout dépend de ce pilote, et sur certains GPU il produit des taches magenta, une géométrie déformée ou des menus corrompus qu\u0027aucun réglage d\u0027ici ne corrige \u2014 PowerVR BXM et Samsung Xclipse ont tous deux été signalés. Si Vulkan s\u0027affiche mal sur votre appareil, c\u0027est précisément à cela que sert le choix par défaut.\n\nLes sections « Pilote Vulkan personnalisé » et « Configuration DXVK » n\u0027apparaissent que si Vulkan est sélectionné.</string>
+    <string name="setup_render_backend_gpu">Votre GPU : %1$s</string>
     <string name="setup_render_backend_status">Actuel : %1$s</string>
     <string name="setup_button_change_render_backend">Changer de moteur de rendu</string>
     <string name="setup_render_backend_dialog_title">Choisir un moteur de rendu</string>
     <string name="setup_render_backend_vulkan">Vulkan</string>
-    <string name="setup_render_backend_gles">OpenGL ES (expérimental)</string>
-    <string name="setup_render_backend_gles_angle">OpenGL ES + ANGLE (expérimental)</string>
+    <string name="setup_render_backend_gles">OpenGL ES (par défaut)</string>
+    <string name="setup_render_backend_gles_angle">OpenGL ES + ANGLE</string>
     <string name="setup_toast_render_backend_saved">Enregistré. Prendra effet au prochain lancement du jeu.</string>
     <string name="setup_toast_render_backend_failed">Impossible d\'enregistrer le choix du moteur de rendu : %1$s</string>
 
@@ -85,6 +86,8 @@
     <string name="setup_diagnostics_no_folder">Sélectionnez d\'abord un dossier de jeu (ci-dessus) pour utiliser ces interrupteurs</string>
     <string name="setup_switch_gx_trace">Journal de trace détaillé</string>
     <string name="setup_switch_gx_trace_desc">Journalisation interne très détaillée (interface, polices, fichiers INI) pour traquer un blocage ou un bug précis. Peut atteindre 50 à 100+ Mo sur une longue session — utilisez plutôt « Résumé des performances » si vous n\'avez besoin que des chiffres de FPS. (gx_trace.txt)</string>
+    <string name="setup_switch_touch_debug">Superposition de saisie tactile</string>
+    <string name="setup_switch_touch_debug_desc">Affiche par-dessus le jeu l\'état de la couche tactile : geste en cours, position de votre doigt, position où le moteur croit que se trouve le pointeur, et ancre de défilement de la caméra. Activez ceci pour signaler des problèmes de contrôle : carte qui défile toute seule, bâtiment fantôme au mauvais endroit, capacité qui vise là où vous n\'avez pas touché. (gx_touch_debug.txt)</string>
     <string name="setup_switch_gx_perf">Résumé des performances</string>
     <string name="setup_switch_gx_perf_desc">Ajoute une courte ligne par seconde indiquant où passe le temps de trame (radar, audio, réseau, logique du jeu, rendu). Peut rester activé toute la session sans risque — activez-le pour les rapports de FPS/ralentissements. (gx_perf.txt)</string>
     <string name="setup_switch_dxvk_hud">Overlay de performances à l\'écran</string>
@@ -169,4 +172,17 @@
     <string name="setup_toast_base_generals_cleared">Dossier du jeu de base réinitialisé</string>
     <string name="setup_base_generals_not_here">Aucune archive du jeu de base Generals dans %1$s — choisissez le dossier contenant Terrain.big, Textures.big et W3D.big.</string>
     <string name="setup_status_base_generals_line">Generals de base : %1$s\n</string>
+    <string name="logviewer_crash_prev_log_absent">(absent)</string>
+    <string name="logviewer_elided_notice">\n...(%1$d caractères omis ici ; le début de session ci-dessus et la sortie la plus récente ci-dessous sont conservés)...\n\n</string>
+    <string name="logviewer_section_crash_prev_log">=== crash-prev.log (gestionnaire de plantage natif, session précédente) ===\n</string>
+    <string name="logviewer_toast_share_none">Aucun fichier journal à partager pour l\u0027instant.</string>
+    <string name="setup_button_dxvk_config_reset">Réinitialiser</string>
+    <string name="setup_button_dxvk_config_save">Enregistrer</string>
+    <string name="setup_card_dxvk_config">Configuration DXVK (dxvk.conf, avancé)</string>
+    <string name="setup_dxvk_config_help">Modifie directement dxvk.conf, le fichier que le moteur lit au démarrage : aucune recompilation nécessaire, l\u0027effet est immédiat au prochain lancement. Réglages utiles si le jeu est lent sur votre appareil :\n\nd3d9.samplerAnisotropy = 2 (ou 0 pour désactiver) — inférieur à la valeur par défaut de 16, allège le travail du GPU sur le matériel modeste.\ndxvk.hud = fps,drawcalls,submissions,pipelines — affiche une petite surcouche de performances.\ndxvk.logLevel = none — à laisser tel quel sauf demande contraire ; les niveaux plus bavards ralentissent le jeu.\n\nUn « key = value » par ligne. DXVK ignore simplement une ligne invalide : une faute de frappe ne cassera pas le jeu, au pire votre modification restera sans effet.</string>
+    <string name="setup_dxvk_config_no_folder">Sélectionnez d\u0027abord un dossier de jeu (ci-dessus)</string>
+    <string name="setup_toast_dxvk_config_no_default">Aucun dxvk.conf par défaut fourni dans cette version.</string>
+    <string name="setup_toast_dxvk_config_reset">Réinitialisé au dxvk.conf par défaut.</string>
+    <string name="setup_toast_dxvk_config_saved">Enregistré. Prendra effet au prochain lancement du jeu.</string>
+    <string name="setup_toast_storage_permission_denied">L\u0027autorisation de stockage est nécessaire pour parcourir le dossier du jeu. Appuyez à nouveau sur « Sélectionner le dossier du jeu ».</string>
 </resources>

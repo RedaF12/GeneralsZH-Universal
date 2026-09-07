@@ -49,13 +49,14 @@
 
     <!-- SetupActivity: Render Backend card -->
     <string name="setup_card_render_backend">Grafičen backend</string>
-    <string name="setup_render_backend_help">Kotoryj grafičen API igra upotřebjaje. Dějstvuje pri sledujućem spuštěniju igry, ne odmah.\n\nVulkan (preporučeno): originalny, najbolje testovany backend (přez prevod DXVK Direct3D 8→Vulkan). Bolšina modernyh telefonov (serija Snapdragon 8 Gen/Elite i podobne) rabotaje s nim otlično na svojem sobstvenom draiveru, bez dodatnyh nastavjenj. Sekcija «Sobstveny Vulkan draiver» niže jest neobovjazkova i tiče sę tolko někotoryh staryh čipov Adreno, čijij sobstveny draiver javjaje versiju nižšu od Vulkan 1.1 — primenjaje sę avtomatično tolko na telefonah, kotori to naisto potrěbujut.\n\nOpenGL ES: sobstveny eksperimentalny zapasny variant za telefony, kotori vobče ne mogut upotřebiti Vulkan (vельmi stari ili nepodderžani GPU). Rabotaje počti vsjudě, no primětno bolje laguje nego dva druga varianty — smatraj jego za poslědnju možnost, ne za prvy izbor.\n\nOpenGL ES + ANGLE: tot že eksperimentalny renderer, no z vgrajenym ANGLE od Google — render idě přez njego (prevoditsę do Vulkan) město sobstvenogo GLES draivera telefona. Tota versija ANGLE jest vgrajena prěmo v aplikaciju — na razliku od sistemnoje funkcije ANGLE samogo Android, ne trěbuje minimalnu versiju Android ani osobny prěključatelj něgdě v nastavjenjah telefona. Primětno brže od prostogo OpenGL ES po spuštěniju, no може kratko zalagovati pri prvom otvorjeniju menija z mnogimi elementami (naprimer, nastavjenj skirmiša), poka ANGLE kompiluje trěbovano; lagovanje prohodi samo i ne opětuje sę, poka ne iziděš i ne otvoriš tot meni znovu.\n\nSekcije «Sobstveny Vulkan draiver» i «Nastavjenja DXVK» niže pokazuju sę tolko pri izboru Vulkan.</string>
+    <string name="setup_render_backend_help">Kotory grafičny API igra upotrěbljaje. Dějstvuje od naslědujučego zapuska igry, ne odrazu.\n\nOpenGL ES (izhodno): nativny renderer, napisany za tot port. Jest izhodnym, ibo rabotaje na vsih dosud prověrenyh uređajah, tože na tyh, gdě Vulkan risuje popsovanu grafiku. Načinaj odsud i směnjaj samo pri pričině.\n\nOpenGL ES + ANGLE: tot že renderer, ale prěz ANGLE od Google, ktory prěvodi jego v Vulkan, město sobstvenogo GLES-drajvera telefona. ANGLE vgraditeljny v tuto aplikaciju, tako ne trěbuje ni minimalnoj versije Androida, ni sistemnoj nastrojki. Často byrše v rabotě, ale menu s mnogymi elementami (nastrojki sråženja) može zaviseti pri prvom otvorenju, poka ANGLE kompiluje potrěbno; vtorično to ne povtori sę, poka ne vyjdeš i ne otvoriš to menu iznova.\n\nVulkan: iznačalny bekend, prěz prěvod Direct3D 8 v Vulkan sredstvami DXVK. Byrše ostalnyh na telefonah, čij drajver s njim spravlja sę \u2014 obyčno svěže Snapdragon. Ale vse zavisi imenno od drajvera, i na někotoryh GPU pojavljajut sę purpurne pjatna, iskrivjena geometrija ili popsovane menu, čego nijakoju nastrojkoju odsud ne popraviti \u2014 soobщali pro PowerVR BXM i Samsung Xclipse. Ako Vulkan vygleda nepravilno na tvojem uređaju, izhodny variant iznačalno jest za to.\n\nRazdely «Svoj drajver Vulkan» i «Konfiguracija DXVK» pokazyvajut sę samo pri izbranom Vulkanu.</string>
+    <string name="setup_render_backend_gpu">Tvoj GPU: %1$s</string>
     <string name="setup_render_backend_status">Sejčas: %1$s</string>
     <string name="setup_button_change_render_backend">Změniti grafičen backend</string>
     <string name="setup_render_backend_dialog_title">Izberi grafičen backend</string>
     <string name="setup_render_backend_vulkan">Vulkan</string>
-    <string name="setup_render_backend_gles">OpenGL ES (eksperimentalny)</string>
-    <string name="setup_render_backend_gles_angle">OpenGL ES + ANGLE (eksperimentalny)</string>
+    <string name="setup_render_backend_gles">OpenGL ES (izhodno)</string>
+    <string name="setup_render_backend_gles_angle">OpenGL ES + ANGLE</string>
     <string name="setup_toast_render_backend_saved">Sohranjeno. Dějstvovati bude pri sledujućem spuštěniju igry.</string>
     <string name="setup_toast_render_backend_failed">Ne uspělo sohraniti izbor grafičnogo backenda: %1$s</string>
 
@@ -85,6 +86,8 @@
     <string name="setup_diagnostics_no_folder">Naprvo izběrte papku igry (vyše) da upotrěbite ti pereklopniki</string>
     <string name="setup_switch_gx_trace">Podrobny log tracovanja</string>
     <string name="setup_switch_gx_trace_desc">Věoma podrobno vnutrněje logovanje (interfejs, šrifti, INI datoteki) za iskanje konkretnogo zavisanja ili greški. Za dolgu sesiju log može narosti do vělikoj věličiny (50-100+ MB) — upotrěbte město togo "Rezimě proizvoditelnosti" jesli trěbujete tolko čisla FPS. (gx_trace.txt)</string>
+    <string name="setup_switch_touch_debug">Nakladka sensornogo vvoda</string>
+    <string name="setup_switch_touch_debug_desc">Risuje sostojanje sensornogo sloja poverh igry: tekuщij žest, gdě tvoj palec, gdě dvižok sčitaje ukazatelj, i jakorj prokrutki kamery. Vklučaj, kogda soobщaješ o problemah upravlenja — karta uhodi sama, prizračnoje zdanje ne na svojem městu, sposobnostj cělitsja tuda, gdě ty ne kasal sę. (gx_touch_debug.txt)</string>
     <string name="setup_switch_gx_perf">Rezimě proizvoditelnosti</string>
     <string name="setup_switch_gx_perf_desc">Dodaje odnu kratku liniju na sekundu, kotora pokazuje kde ide vrěmě kadra (radar, zvuk, sěť, logika igry, renderovanje). Bezpečno ostaviti uklopjeno za cělu sesiju igry — uklopte za izvěšćenja o FPS/zapovolnjenjih. (gx_perf.txt)</string>
     <string name="setup_switch_dxvk_hud">Ekranny overlej proizvoditelnosti</string>
@@ -169,4 +172,17 @@
     <string name="setup_toast_base_generals_cleared">Papka osnovnoj igry odstranjena</string>
     <string name="setup_base_generals_not_here">V %1$s ne ima arhivov osnovnoj igry Generals — izberi papku, v kojej sut Terrain.big, Textures.big i W3D.big.</string>
     <string name="setup_status_base_generals_line">Osnovna Generals: %1$s\n</string>
+    <string name="logviewer_crash_prev_log_absent">(néma)</string>
+    <string name="logviewer_elided_notice">\n...(%1$d znakov tut propuščeno; početok sesije vyše i najnovějši vyvod nižeje sohranjeni)...\n\n</string>
+    <string name="logviewer_section_crash_prev_log">=== crash-prev.log (nativny obrabotnik padenij, prědiduča sesija) ===\n</string>
+    <string name="logviewer_toast_share_none">Ješče něma fajlov žurnala za dělenje.</string>
+    <string name="setup_button_dxvk_config_reset">Vrnuti izhodno</string>
+    <string name="setup_button_dxvk_config_save">Sohraniti</string>
+    <string name="setup_card_dxvk_config">Konfiguracija DXVK (dxvk.conf, naprědno)</string>
+    <string name="setup_dxvk_config_help">Rediguje dxvk.conf naprosto — tot že fajl, ktory dvižok čita pri startu. Perestrojka ne trěbna, dějstvuje od naslědujučego zapuska. Korisno, ako igra idet medlenno na tvojem uređaju:\n\nd3d9.samplerAnisotropy = 2 (ili 0 za odklučenje) — menje od izhodnyh 16, umenjšaje nagruzku na GPU slabših uređajev.\ndxvk.hud = fps,drawcalls,submissions,pipelines — pokazyva malu nakladku proizvoditelnosti.\ndxvk.logLevel = none — ostavi tako, ako ne prosili inako; podrobnějše rovni zpomaljajut igru.\n\nJedno «key = value» na rědok. Nepravilny rědok DXVK prosto ignoruje, tako čto opečatka ne zlomi igru — v najgoršem slučaju tvoja izměna ne budet iměti effekta.</string>
+    <string name="setup_dxvk_config_no_folder">Najprvo izberi papku igry (vyše)</string>
+    <string name="setup_toast_dxvk_config_no_default">V tom bildu ne najden vgraditelny izhodny dxvk.conf.</string>
+    <string name="setup_toast_dxvk_config_reset">Vrnjeno k izhodnomu dxvk.conf.</string>
+    <string name="setup_toast_dxvk_config_saved">Sohranjeno. Budet dějstvovati pri naslědujučem zapusku igry.</string>
+    <string name="setup_toast_storage_permission_denied">Za prěgled papki igry trěbno dozvolenje k hranilišču. Natisni «Izbrati papku igry» ješče raz.</string>
 </resources>

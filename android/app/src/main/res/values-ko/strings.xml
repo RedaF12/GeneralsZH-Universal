@@ -49,13 +49,14 @@
 
     <!-- SetupActivity: Render Backend card -->
     <string name="setup_card_render_backend">렌더 백엔드</string>
-    <string name="setup_render_backend_help">게임이 사용하는 그래픽 API입니다. 다음에 게임을 실행할 때 적용되며, 즉시 적용되지는 않습니다.\n\nVulkan(권장): 가장 오래되고 가장 많이 테스트된 백엔드입니다(DXVK의 Direct3D 8→Vulkan 변환 사용). 대부분의 최신 휴대폰(Snapdragon 8 Gen/Elite 시리즈 등)은 별도 설정 없이 기본 드라이버로도 훌륭하게 작동합니다. 아래의 「사용자 지정 Vulkan 드라이버」 항목은 선택 사항이며, 기본 드라이버가 Vulkan 1.1 미만 버전을 보고하는 일부 구형 Adreno 칩에만 관련이 있습니다 — 실제로 필요한 휴대폰에만 자동으로 적용됩니다.\n\nOpenGL ES: Vulkan을 전혀 사용할 수 없는 휴대폰(매우 오래되었거나 지원되지 않는 GPU)을 위한 네이티브 실험적 대체 수단입니다. 거의 모든 곳에서 작동하지만 다른 두 옵션보다 눈에 띄게 느립니다 — 첫 번째 선택이 아니라 최후의 수단으로 생각하세요.\n\nOpenGL ES + ANGLE: 동일한 실험적 렌더러이지만, 휴대폰에 내장된 GLES 드라이버 대신 Google의 ANGLE을 함께 번들로 포함하여 이를 통해(Vulkan으로 변환되어) 렌더링합니다. 이 ANGLE 빌드는 이 앱 안에 직접 포함되어 있습니다 — Android 자체의 시스템 전역 ANGLE 기능과 달리 최소 Android 버전이나 휴대폰 설정의 별도 전환 스위치가 필요하지 않습니다. 실행되면 일반 OpenGL ES보다 눈에 띄게 빠르지만, 컨트롤이 많은 메뉴(예: 스커미시 옵션)를 처음 열 때 ANGLE이 필요한 것을 컴파일하는 동안 잠깐 끓길 수 있습니다. 이 끓김은 저절로 사라지며, 해당 메뉴를 나갔다가 다시 열기 전까지는 다시 나타나지 않습니다.\n\n아래의 「사용자 지정 Vulkan 드라이버」와 「DXVK 설정」 섹션은 Vulkan을 선택했을 때만 표시됩니다.</string>
+    <string name="setup_render_backend_help">게임이 사용할 그래픽 API입니다. 즉시가 아니라 다음에 게임을 실행할 때 적용됩니다.\n\nOpenGL ES (기본값): 이 이식판을 위해 작성된 네이티브 렌더러입니다. 지금까지 시험한 모든 기기에서 동작하고, Vulkan이 깨진 화면을 그리는 기기에서도 동작하기 때문에 기본값입니다. 여기서 시작하고, 이유가 있을 때만 바꾸세요.\n\nOpenGL ES + ANGLE: 같은 렌더러지만 휴대폰의 GLES 드라이버 대신 구글 ANGLE을 거쳐 Vulkan으로 번역됩니다. ANGLE은 이 앱에 포함되어 있어 최소 안드로이드 버전도, 시스템 설정도 필요 없습니다. 실행 후에는 대체로 더 빠르지만, 요소가 많은 메뉴(교전 설정)를 처음 열 때 ANGLE이 필요한 것을 컴파일하는 동안 잠깐 끊길 수 있습니다. 그 메뉴를 나갔다가 다시 열기 전까지는 다시 끊기지 않습니다.\n\nVulkan: DXVK의 Direct3D 8 → Vulkan 변환을 거치는 원래 백엔드입니다. 드라이버가 잘 처리하는 기기, 보통 최신 스냅드래곤에서는 가장 빠릅니다. 다만 전적으로 그 드라이버에 달려 있어서, 일부 GPU에서는 자홍색 얼룩, 일그러진 지오메트리, 깨진 메뉴가 나타나며 여기의 어떤 설정으로도 고칠 수 없습니다 \u2014 PowerVR BXM과 삼성 Xclipse가 보고되었습니다. 기기에서 Vulkan이 이상해 보인다면, 기본값은 바로 그럴 때를 위한 것입니다.\n\n«사용자 지정 Vulkan 드라이버»와 «DXVK 설정» 항목은 Vulkan을 선택했을 때만 나타납니다.</string>
+    <string name="setup_render_backend_gpu">사용 중인 GPU: %1$s</string>
     <string name="setup_render_backend_status">현재: %1$s</string>
     <string name="setup_button_change_render_backend">렌더 백엔드 변경</string>
     <string name="setup_render_backend_dialog_title">렌더 백엔드 선택</string>
     <string name="setup_render_backend_vulkan">Vulkan</string>
-    <string name="setup_render_backend_gles">OpenGL ES (실험적)</string>
-    <string name="setup_render_backend_gles_angle">OpenGL ES + ANGLE (실험적)</string>
+    <string name="setup_render_backend_gles">OpenGL ES (기본값)</string>
+    <string name="setup_render_backend_gles_angle">OpenGL ES + ANGLE</string>
     <string name="setup_toast_render_backend_saved">저장되었습니다. 다음에 게임을 실행할 때 적용됩니다.</string>
     <string name="setup_toast_render_backend_failed">렌더 백엔드 선택을 저장하지 못했습니다: %1$s</string>
 
@@ -85,6 +86,8 @@
     <string name="setup_diagnostics_no_folder">이 스위치를 사용하려면 먼저 위에서 게임 폴더를 선택하세요</string>
     <string name="setup_switch_gx_trace">상세 추적 로그</string>
     <string name="setup_switch_gx_trace_desc">특정 멈춤이나 버그를 추적하기 위한 매우 상세한 내부 로그(UI, 글꼴, INI 파일). 긴 세션에서는 로그가 50~100MB 이상으로 커질 수 있습니다 — FPS 수치만 필요하면 대신 "성능 요약"을 사용하세요. (gx_trace.txt)</string>
+    <string name="setup_switch_touch_debug">터치 입력 오버레이</string>
+    <string name="setup_switch_touch_debug_desc">터치 계층의 상태를 게임 위에 표시합니다: 현재 제스처, 손가락 위치, 엔진이 포인터가 있다고 여기는 위치, 카메라 스크롤 기준점. 조작 문제를 보고할 때 켜세요 — 저절로 움직이는 지도, 엉뚱한 곳의 유령 건물, 누르지 않은 곳을 겨냥하는 능력. (gx_touch_debug.txt)</string>
     <string name="setup_switch_gx_perf">성능 요약</string>
     <string name="setup_switch_gx_perf_desc">프레임 시간이 어디에 쓰이는지(레이더, 오디오, 네트워크, 게임 로직, 렌더링) 매초 한 줄씩 짧게 추가합니다. 세션 내내 켜둬도 안전합니다 — FPS/버벅임 제보 시 켜세요. (gx_perf.txt)</string>
     <string name="setup_switch_dxvk_hud">화면 성능 오버레이</string>
@@ -169,4 +172,17 @@
     <string name="setup_toast_base_generals_cleared">기본 게임 폴더를 지웠습니다</string>
     <string name="setup_base_generals_not_here">%1$s에는 기본 게임 Generals 아카이브가 없습니다 — Terrain.big, Textures.big, W3D.big이 있는 폴더를 선택하세요.</string>
     <string name="setup_status_base_generals_line">기본 Generals: %1$s\n</string>
+    <string name="logviewer_crash_prev_log_absent">(없음)</string>
+    <string name="logviewer_elided_notice">\n...(여기서 %1$d자 생략됨. 위의 세션 시작 부분과 아래의 최신 출력은 유지됩니다)...\n\n</string>
+    <string name="logviewer_section_crash_prev_log">=== crash-prev.log (네이티브 크래시 핸들러, 이전 세션) ===\n</string>
+    <string name="logviewer_toast_share_none">아직 공유할 로그 파일이 없습니다.</string>
+    <string name="setup_button_dxvk_config_reset">기본값으로 되돌리기</string>
+    <string name="setup_button_dxvk_config_save">저장</string>
+    <string name="setup_card_dxvk_config">DXVK 설정 (dxvk.conf, 고급)</string>
+    <string name="setup_dxvk_config_help">dxvk.conf를 직접 편집합니다. 엔진이 시작할 때 읽는 바로 그 파일이라 다시 빌드할 필요 없이 다음 실행부터 적용됩니다. 기기에서 게임이 느리게 느껴질 때 유용한 설정:\n\nd3d9.samplerAnisotropy = 2 (끄려면 0) — 기본값 16보다 낮춰 성능이 약한 기기의 GPU 부담을 줄입니다.\ndxvk.hud = fps,drawcalls,submissions,pipelines — 화면에 작은 성능 오버레이를 표시합니다.\ndxvk.logLevel = none — 요청받지 않았다면 그대로 두세요. 자세한 수준일수록 게임이 느려집니다.\n\n한 줄에 «key = value» 하나씩. 잘못된 줄은 DXVK가 그냥 무시하므로 오타로 게임이 망가지지 않습니다. 최악의 경우 변경이 적용되지 않을 뿐입니다.</string>
+    <string name="setup_dxvk_config_no_folder">먼저 게임 폴더를 선택하세요 (위)</string>
+    <string name="setup_toast_dxvk_config_no_default">이 빌드에는 기본 dxvk.conf가 포함되어 있지 않습니다.</string>
+    <string name="setup_toast_dxvk_config_reset">기본 dxvk.conf로 되돌렸습니다.</string>
+    <string name="setup_toast_dxvk_config_saved">저장했습니다. 다음에 게임을 실행할 때 적용됩니다.</string>
+    <string name="setup_toast_storage_permission_denied">게임 폴더를 찾아보려면 저장소 권한이 필요합니다. «게임 폴더 선택»을 다시 누르세요.</string>
 </resources>
