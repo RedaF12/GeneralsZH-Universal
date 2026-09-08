@@ -24,7 +24,11 @@
 
 #include "Common/GameType.h"
 #include "Common/MessageStream.h"
+#include "Common/AcademyStats.h"
+#include "Common/GameCommon.h"
 #include "Common/Player.h"
+#include "Common/PlayerList.h"
+#include "Common/Radar.h"
 #include "Common/ThingTemplate.h"
 #include "Common/GlobalData.h"
 #include "GameClient/CommandXlat.h"
@@ -32,6 +36,8 @@
 #include "GameClient/Display.h"
 #include "GameClient/Drawable.h"
 #include "GameClient/GameClient.h"
+#include "GameClient/GameWindow.h"
+#include "GameClient/GameWindowManager.h"
 #include "GameClient/InGameUI.h"
 #include "GameClient/SelectionInfo.h"
 #include "GameClient/SelectionXlat.h"
@@ -314,6 +320,51 @@ namespace TouchInput
 		if (picked == nullptr || obj == nullptr || !obj->isLocallyControlled() ||
 				!picked->isMassSelectable())
 		{
+			// GeneralsX @bugfix Android port 08/09/2026 ...except a double tap on bare
+			// ground, which has its own meaning the player can switch on: Options ->
+			// CONTROL OPTIONS -> "Double Click Guard" (m_doubleClickAttackMove) makes a
+			// double click on the ground an attack-move instead of a plain move. Reported
+			// as "the Double Click Guard checkbox does nothing".
+			//
+			// It did nothing because the flag is only ever read while handling
+			// MSG_MOUSE_LEFT_DOUBLE_CLICK in CommandXlat (CommandXlat.cpp:3980), and a
+			// natively resolved double tap never puts that message in the stream. So do
+			// here exactly what that case does -- same message, same guard mode, same
+			// academy stat and hint -- rather than route a synthetic double click through
+			// the translators just to reach it.
+			//
+			// Only for a tap that picked nothing at all. Double-tapping an enemy or a
+			// neutral object stays an ordinary tap (an attack, a capture), keeping the
+			// "never worse than a single tap" rule above intact. CommandXlat's own
+			// alternate-mouse condition is dropped: a finger has no second button, so
+			// that setting does not govern touch input at all.
+			if (picked == nullptr &&
+					TheGlobalData != nullptr && TheGlobalData->m_doubleClickAttackMove &&
+					hasControllableSelection() && TheMessageStream != nullptr)
+			{
+				Coord3D pos;
+				if (TheTacticalView->screenToTerrain(&pixel, &pos))
+				{
+					GameMessage *newMsg =
+						TheMessageStream->appendMessage(GameMessage::MSG_DO_GUARD_POSITION);
+					newMsg->appendLocationArgument(pos);
+					newMsg->appendIntegerArgument(GUARDMODE_NORMAL);
+
+					if (ThePlayerList != nullptr && ThePlayerList->getLocalPlayer() != nullptr)
+						ThePlayerList->getLocalPlayer()->getAcademyStats()
+							->recordDoubleClickAttackMoveOrderGiven();
+
+					// The touch entry point, not the mouse one: that reads TheMouse's
+					// position (InGameUI.cpp:1631), which on a touch device is not where
+					// the player pointed, and it leaves the decal to createCommandHint(),
+					// which runs off mouseover hints a finger never generates. Reported as
+					// "double tap does nothing, and the radius only appears if I open the
+					// game menu". Pass the point that was actually ordered.
+					TheInGameUI->triggerTouchAttackMoveGuardHint(&pos);
+					return;
+				}
+			}
+
 			tap(x, y);
 			return;
 		}
@@ -374,6 +425,51 @@ namespace TouchInput
 		}
 
 		TheInGameUI->deselectAllDrawables();
+	}
+
+
+	//-------------------------------------------------------------------------------------
+	Bool lookAtRadarPoint(Int x, Int y)
+	{
+		if (TheRadar == nullptr || TheWindowManager == nullptr || TheTacticalView == nullptr)
+			return FALSE;
+
+		// getWindowForInputAt() reports the deepest window a press here would be routed to,
+		// which for the radar is whatever child happens to sit at that pixel -- so walk up
+		// to the radar window itself. Radar::isRadarWindow() is the engine's own test; the
+		// window is looked up once per map in Radar::newMap (Radar.cpp:314).
+		Bool onRadar = FALSE;
+		for (GameWindow *win = TheWindowManager->getWindowForInputAt(x, y);
+		     win != nullptr;
+		     win = win->winGetParent())
+		{
+			if (TheRadar->isRadarWindow(win))
+			{
+				onRadar = TRUE;
+				break;
+			}
+		}
+
+		if (!onRadar)
+			return FALSE;
+
+		// Radar::screenPixelToWorld does the whole conversion the radar callback does by
+		// hand -- window-relative pixel, radar cell, world point -- and fails cleanly for a
+		// pixel that is inside the window but outside the map's part of it.
+		ICoord2D pixel;
+		pixel.x = x;
+		pixel.y = y;
+
+		Coord3D world;
+		if (!TheRadar->screenPixelToWorld(&pixel, &world))
+			return FALSE;
+
+		// Straight to the view, exactly as ControlBarCallback.cpp:267 does for a right
+		// click. Not a synthesized right click: a raw right button in the message stream is
+		// what left the camera latched into an edge scroll before (see the header comment on
+		// this module), and nothing about moving the camera needs the message stream.
+		TheTacticalView->userLookAt(&world);
+		return TRUE;
 	}
 
 }  // namespace TouchInput
