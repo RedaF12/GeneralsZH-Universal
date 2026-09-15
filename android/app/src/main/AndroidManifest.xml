@@ -79,7 +79,7 @@
         android:appCategory="game"
         android:hardwareAccelerated="true"
         android:supportsRtl="true"
-        android:requestLegacyExternalStorage="false">
+        android:requestLegacyExternalStorage="true">
 
         <activity
             android:name=".GeneralsZHActivity"
