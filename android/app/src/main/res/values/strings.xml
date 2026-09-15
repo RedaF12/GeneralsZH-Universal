@@ -70,6 +70,7 @@
     <string name="setup_driver_status_manual">Custom driver (manually imported): %1$s</string>
     <string name="setup_driver_unknown">(unknown)</string>
     <string name="setup_toast_no_file_picker">No file picker available: %1$s</string>
+    <string name="setup_toast_system_picker_local_storage_only">Please select a local phone storage folder (Internal storage or an SD card). Cloud/Drive folders cannot be used by the native game engine.</string>
     <string name="setup_toast_reset_auto">Reset done. The recommended driver for this device was reapplied.</string>
     <string name="setup_toast_reset_stock">Reset done. Your phone\'s built-in Vulkan driver will be used.</string>
     <string name="setup_toast_driver_import_no_tmp">Could not create working folder for driver import</string>
