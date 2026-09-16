@@ -2528,11 +2528,19 @@ public class SetupActivity extends Activity {
     private static final int REQUEST_PICK_BASE_GENERALS = 1003;
     private static final int REQUEST_LEGACY_STORAGE_PERMISSION = 1004;
 
+    // FolderPickerActivity returns a real filesystem path. Remember which
+    // folder button requested the Android 10 permission dialog so the callback
+    // opens the correct picker instead of always opening the game-folder picker.
+    private int mPendingFolderRequestCode = REQUEST_PICK_GAME_FOLDER;
+
     private void onSelectGameFolder() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            // Android 11+ still needs broad filesystem access because the native
-            // engine receives a normal /storage/... path, not a content:// URI.
+            // The native engine needs a real filesystem path. Once the user has
+            // granted MANAGE_EXTERNAL_STORAGE, use the in-app File browser
+            // rather than ACTION_OPEN_DOCUMENT_TREE. DocumentsUI deliberately
+            // blocks selecting the storage root on modern Android/MIUI.
             if (!Environment.isExternalStorageManager()) {
+                mPendingFolderRequestCode = REQUEST_PICK_GAME_FOLDER;
                 Toast.makeText(this, R.string.setup_toast_grant_all_files, Toast.LENGTH_LONG).show();
                 try {
                     Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
@@ -2543,15 +2551,14 @@ public class SetupActivity extends Activity {
                 }
                 return;
             }
-            openSystemFolderPicker(REQUEST_PICK_GAME_FOLDER);
+            openLocalFolderPicker(REQUEST_PICK_GAME_FOLDER);
             return;
         }
 
         // Android 10: request the legacy shared-storage runtime permission.
-        // requestLegacyExternalStorage=true in the manifest makes the existing
-        // native /storage/emulated/0/... paths usable on API 29.
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE)
                 != PackageManager.PERMISSION_GRANTED) {
+            mPendingFolderRequestCode = REQUEST_PICK_GAME_FOLDER;
             ActivityCompat.requestPermissions(this,
                 new String[] {
                     Manifest.permission.READ_EXTERNAL_STORAGE,
@@ -2560,14 +2567,16 @@ public class SetupActivity extends Activity {
                 REQUEST_LEGACY_STORAGE_PERMISSION);
             return;
         }
-        openSystemFolderPicker(REQUEST_PICK_GAME_FOLDER);
+        openLocalFolderPicker(REQUEST_PICK_GAME_FOLDER);
     }
 
-    // Same system file manager for the optional BASE Generals archive folder.
+
+    // Same real-filesystem folder browser for the optional BASE Generals archive folder.
     private void onSelectBaseGeneralsFolder() {
         if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q
                 && ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE)
                     != PackageManager.PERMISSION_GRANTED) {
+            mPendingFolderRequestCode = REQUEST_PICK_BASE_GENERALS;
             ActivityCompat.requestPermissions(this,
                 new String[] {
                     Manifest.permission.READ_EXTERNAL_STORAGE,
@@ -2576,8 +2585,10 @@ public class SetupActivity extends Activity {
                 REQUEST_LEGACY_STORAGE_PERMISSION);
             return;
         }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
                 && !Environment.isExternalStorageManager()) {
+            mPendingFolderRequestCode = REQUEST_PICK_BASE_GENERALS;
             Toast.makeText(this, R.string.setup_toast_grant_all_files, Toast.LENGTH_LONG).show();
             try {
                 Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
@@ -2588,8 +2599,21 @@ public class SetupActivity extends Activity {
             }
             return;
         }
-        openSystemFolderPicker(REQUEST_PICK_BASE_GENERALS);
+
+        openLocalFolderPicker(REQUEST_PICK_BASE_GENERALS);
     }
+
+    private void openLocalFolderPicker(int requestCode) {
+        try {
+            Intent intent = new Intent(this, FolderPickerActivity.class);
+            startActivityForResult(intent, requestCode);
+        } catch (Exception e) {
+            Toast.makeText(this,
+                getString(R.string.setup_toast_no_file_picker, e.getMessage()),
+                Toast.LENGTH_LONG).show();
+        }
+    }
+
 
     private void openSystemFolderPicker(int requestCode) {
         try {
@@ -2691,6 +2715,21 @@ public class SetupActivity extends Activity {
         return result.getAbsolutePath();
     }
 
+    private String takeFolderSelection(Intent data) {
+        if (data == null) {
+            return null;
+        }
+
+        String selectedPath = data.getStringExtra(FolderPickerActivity.EXTRA_SELECTED_PATH);
+        if (selectedPath != null && !selectedPath.isEmpty()) {
+            return selectedPath;
+        }
+
+        // Keep compatibility with a result returned by the Android system
+        // DocumentsUI picker if an older Activity instance is still alive.
+        return takeSystemTreeSelection(data);
+    }
+
     private String takeSystemTreeSelection(Intent data) {
         Uri treeUri = data != null ? data.getData() : null;
         if (treeUri == null) {
@@ -2765,7 +2804,7 @@ public class SetupActivity extends Activity {
                 // The permission callback is used by both folder buttons. The
                 // game-folder button is the normal first-run path; base-generals
                 // can still be opened afterwards from the UI.
-                openSystemFolderPicker(REQUEST_PICK_GAME_FOLDER);
+                openLocalFolderPicker(mPendingFolderRequestCode);
             } else {
                 Toast.makeText(this, R.string.setup_toast_storage_permission_denied,
                     Toast.LENGTH_LONG).show();
@@ -2777,7 +2816,7 @@ public class SetupActivity extends Activity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == REQUEST_PICK_GAME_FOLDER && resultCode == Activity.RESULT_OK && data != null) {
-            String path = takeSystemTreeSelection(data);
+            String path = takeFolderSelection(data);
             if (path != null) {
                 saveGamePath(path);
                 refreshStatus();
@@ -2804,7 +2843,7 @@ public class SetupActivity extends Activity {
                 }
             }
         } else if (requestCode == REQUEST_PICK_BASE_GENERALS && resultCode == Activity.RESULT_OK && data != null) {
-            String path = takeSystemTreeSelection(data);
+            String path = takeFolderSelection(data);
             if (path != null) {
                 // GeneralsX @bugfix Android port 06/09/2026 Judged on the archives
                 // that actually carry the original game's artwork -- an earlier
