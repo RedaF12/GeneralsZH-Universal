@@ -2688,7 +2688,7 @@ public class SetupActivity extends Activity {
             } catch (Exception e) {
                 return null;
             }
-            if ("..".equals(decoded) || decoded.indexOf('\\0') >= 0) {
+            if ("..".equals(decoded) || decoded.indexOf('\0') >= 0) {
                 return null;
             }
             result = new File(result, decoded);
