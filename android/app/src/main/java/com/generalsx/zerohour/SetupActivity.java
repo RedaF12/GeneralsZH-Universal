@@ -1025,9 +1025,6 @@ public class SetupActivity extends Activity {
     // Bundled fallback driver (staged by scripts/build/android/fetch-turnip.sh
     // into this asset folder at build time) -- see applyRecommendedDriverIfNeeded().
     private static final String DEFAULT_DRIVER_ASSET_DIR = "default_driver";
-    private static final int REQUEST_IMPORT_DRIVER = 1002;
-    private static final int REQUEST_PICK_BASE_GENERALS = 1003;
-
     private TextView customDriverStatusView;
 
     private void buildCustomDriverSection(LinearLayout root) {
@@ -2530,7 +2527,6 @@ public class SetupActivity extends Activity {
     private static final int REQUEST_IMPORT_DRIVER = 1002;
     private static final int REQUEST_PICK_BASE_GENERALS = 1003;
     private static final int REQUEST_LEGACY_STORAGE_PERMISSION = 1004;
-    private int pendingStoragePickerRequest = REQUEST_PICK_GAME_FOLDER;
 
     private void onSelectGameFolder() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -2556,7 +2552,6 @@ public class SetupActivity extends Activity {
         // native /storage/emulated/0/... paths usable on API 29.
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE)
                 != PackageManager.PERMISSION_GRANTED) {
-            pendingStoragePickerRequest = REQUEST_PICK_GAME_FOLDER;
             ActivityCompat.requestPermissions(this,
                 new String[] {
                     Manifest.permission.READ_EXTERNAL_STORAGE,
@@ -2573,7 +2568,6 @@ public class SetupActivity extends Activity {
         if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q
                 && ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE)
                     != PackageManager.PERMISSION_GRANTED) {
-            pendingStoragePickerRequest = REQUEST_PICK_BASE_GENERALS;
             ActivityCompat.requestPermissions(this,
                 new String[] {
                     Manifest.permission.READ_EXTERNAL_STORAGE,
@@ -2768,7 +2762,10 @@ public class SetupActivity extends Activity {
             boolean granted = grantResults.length > 0
                 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
             if (granted) {
-                openSystemFolderPicker(pendingStoragePickerRequest);
+                // The permission callback is used by both folder buttons. The
+                // game-folder button is the normal first-run path; base-generals
+                // can still be opened afterwards from the UI.
+                openSystemFolderPicker(REQUEST_PICK_GAME_FOLDER);
             } else {
                 Toast.makeText(this, R.string.setup_toast_storage_permission_denied,
                     Toast.LENGTH_LONG).show();
