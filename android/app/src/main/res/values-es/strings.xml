@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Generals Zero Hour</string>
+    <string name="app_name">GeneralsZH</string>
     <string name="common_cancel">Cancelar</string>
 
     <!-- SetupActivity: title / fallback -->
@@ -49,6 +49,17 @@
 
     <!-- SetupActivity: Render Backend card -->
     <string name="setup_card_render_backend">Backend de renderizado</string>
+    <string name="setup_card_sim_rate">Frecuencia de simulación</string>
+    <string name="setup_sim_rate_30_short">30 Hz</string>
+    <string name="setup_sim_rate_60_short">60 Hz</string>
+    <string name="setup_sim_rate_30_desc">30 Hz es lo que han usado todas las versiones anteriores de esta adaptación. Las partidas de Android contra Android funcionan, pero una partida contra un jugador de Windows se desincronizará.</string>
+    <string name="setup_sim_rate_60_desc">60 Hz es lo que usa el cliente GeneralsOnline de Windows, y es lo que hace posible el juego multiplataforma. La simulación hace el doble de trabajo por segundo, así que un dispositivo más lento puede no alcanzar la velocidad completa.</string>
+    <string name="setup_sim_rate_help">La frecuencia se fija al compilar el motor, por eso la aplicación incluye ambas versiones y carga la que elijas aquí. El cambio se aplica la próxima vez que inicies el juego. Ambos jugadores de una partida deben usar la misma frecuencia.</string>
+    <string name="setup_toast_sim_rate_saved">Frecuencia de simulación guardada. Se aplicará la próxima vez que inicies el juego.</string>
+    <string name="online_crossplay_hz_title">Frecuencia de simulación cambiada a 60 Hz</string>
+    <string name="online_crossplay_hz_message">El cliente de Windows simula a 60 Hz y un cliente a 30 Hz no puede mantenerse sincronizado con él, así que el juego multiplataforma ha cambiado este dispositivo a 60 Hz. Se aplicará la próxima vez que inicies el juego.\n\nEsto duplica el trabajo de simulación por segundo. Si el juego va lento, desactiva el juego multiplataforma o vuelve a 30 Hz en «Gráficos», pero entonces solo podrás jugar con otros jugadores de Android a 30 Hz.</string>
+    <string name="online_crossplay_hz_30">Frecuencia de simulación: 30 Hz — no puede sincronizarse con un PC</string>
+    <string name="online_crossplay_hz_60">Frecuencia de simulación: 60 Hz — coincide con el cliente de PC</string>
     <string name="setup_render_backend_help">Qué API gráfica usa el juego. Surte efecto la próxima vez que lo inicies, no al instante.\n\nOpenGL ES (predeterminado): un renderizador nativo escrito para este port. Es el predeterminado porque funciona en todos los dispositivos probados hasta ahora, incluidos aquellos en los que Vulkan dibuja gráficos corruptos. Empieza aquí y cámbialo solo si tienes un motivo.\n\nOpenGL ES + ANGLE: el mismo renderizador, pero pasando por ANGLE de Google, que lo traduce a Vulkan, en lugar del controlador GLES propio del teléfono. ANGLE viene incluido en esta app, así que no necesita una versión mínima de Android ni ningún ajuste del sistema. Suele ser más rápido una vez en marcha, aunque un menú con muchos controles (opciones de Escaramuza) puede trabarse la primera vez que se abre mientras ANGLE compila lo necesario; no vuelve a ocurrir hasta que sales y lo abres de nuevo.\n\nVulkan: el backend original, mediante la traducción de Direct3D 8 a Vulkan de DXVK. Más rápido que los demás en teléfonos cuyo controlador lo maneja bien, normalmente Snapdragon recientes. Pero depende por completo de ese controlador, y en algunas GPU produce manchas magenta, geometría distorsionada o menús corruptos que ningún ajuste de aquí puede arreglar \u2014 se han reportado PowerVR BXM y Samsung Xclipse. Si Vulkan se ve mal en tu dispositivo, para eso está el predeterminado.\n\nLas secciones «Controlador Vulkan personalizado» y «Configuración de DXVK» solo aparecen con Vulkan seleccionado.</string>
     <string name="setup_render_backend_gpu">Tu GPU: %1$s</string>
     <string name="setup_render_backend_status">Actual: %1$s</string>
@@ -215,4 +226,70 @@
     <string name="setup_render_backend_gles_short">GLES</string>
     <string name="setup_render_backend_gles_angle_short">ANGLE</string>
     <string name="setup_render_backend_vulkan_short">Vulkan</string>
+    <string name="setup_switch_gx_net_trace">Registro de red en línea</string>
+    <string name="setup_switch_gx_net_trace_desc">Registra cada petición del juego a los servidores de GeneralsOnline y la respuesta recibida. Actívalo si el inicio de sesión, la sala o el emparejamiento fallan ya dentro del juego. Las peticiones del lanzador se registran siempre; esto añade las del juego. También activa el diagnóstico de desincronización en el juego multiplataforma: las sumas de comprobación de la simulación que se comparan en cada intervalo y, en una repetición, la de cada objeto. (gx_net_trace.txt)</string>
+    <string name="netdiag_title">Diagnóstico de red</string>
+    <string name="netdiag_row_note">Comprobar si este dispositivo llega a los servidores de GeneralsOnline y generar un informe para adjuntar a un reporte.</string>
+    <string name="netdiag_intro">Comprueba, por orden: si hay red funcionando, si los nombres de los servidores de GeneralsOnline se resuelven, si los servidores responden y qué dicen sobre el inicio de sesión.\n\nNo se envía nada. Toca «Ejecutar» para empezar.</string>
+    <string name="netdiag_running">Ejecutando…</string>
+    <string name="netdiag_running_step">Ejecutando… (%1$s)</string>
+    <string name="netdiag_button_run">Ejecutar diagnóstico</string>
+    <string name="netdiag_button_share">Compartir informe</string>
+    <string name="netdiag_button_copy">Copiar</string>
+    <string name="netdiag_toast_copied">Informe copiado al portapapeles.</string>
+    <string name="netdiag_toast_share_failed">No se pudo compartir el informe: %1$s</string>
+    <string name="netdiag_share_subject">Registro de red de GeneralsZH</string>
+    <string name="online_status_banned">Esta cuenta está baneada en GeneralsOnline. Puedes apelar en su Discord.</string>
+    <string name="online_status_banned_reason">Esta cuenta está baneada en GeneralsOnline: %1$s</string>
+    <string name="online_status_requesting_code">Solicitando un código de inicio de sesión al servidor…</string>
+    <string name="online_status_no_login_code">El servidor no emitió un código de inicio de sesión. Comprueba la conexión e inténtalo de nuevo, o ejecuta el diagnóstico de red en Herramientas.</string>
+    <string name="online_card_datapacks">Datos del juego en línea</string>
+    <string name="online_datapacks_help">Jugar en línea necesita dos cosas que el juego no incluye: el parche de datos de la comunidad, del que depende que una partida de PC acepte este dispositivo, y los mapas de la comunidad en los que se juega. Aquí se descargan ambos directamente de GeneralsOnline, sin PC.</string>
+    <string name="online_button_datapacks_update">Actualizar</string>
+    <string name="online_datapacks_checking">Buscando actualizaciones…</string>
+    <string name="online_datapacks_downloading">Descargando… %1$d%%</string>
+    <string name="online_datapacks_installing">Instalando…</string>
+    <string name="online_datapacks_done">Actualizado a %1$s. %2$d archivos instalados.</string>
+    <string name="online_datapacks_failed">Error al actualizar: %1$s</string>
+    <string name="online_datapacks_installed">Instalado: versión %1$s</string>
+    <string name="online_datapacks_not_installed">Aún no instalado.</string>
+    <string name="online_button_datapacks_delete">Eliminar</string>
+    <string name="online_switch_datapacks">Usar el parche de datos de la comunidad</string>
+    <string name="online_switch_datapacks_desc">Desactivarlo conserva la descarga, pero el juego vuelve a leer los datos originales y las partidas de PC rechazarán este dispositivo. Se aplica al iniciar el juego la próxima vez.</string>
+    <string name="online_datapacks_chip_sign_in_first">Inicie sesión primero</string>
+    <string name="online_datapacks_chip_required">Necesario para jugar en línea: pulse Actualizar</string>
+    <string name="online_datapacks_chip_off">Descargado, pero desactivado</string>
+    <string name="online_datapacks_chip_ready">Listo para jugar en línea</string>
+    <string name="online_datapacks_prompt">Las partidas alojadas en un PC rechazarán este dispositivo mientras falte el parche de datos de la comunidad, y se juegan en los mapas de la comunidad. ¿Descargar ambos ahora? Unos 30 MB.</string>
+    <string name="online_datapacks_prompt_later">Más tarde</string>
+    <string name="online_datapacks_delete_confirm">Elimina solo los archivos que instaló esta descarga. Sus mapas y partidas guardadas no se tocan.</string>
+    <string name="online_datapacks_deleted">%1$d archivos eliminados.</string>
+    <string name="online_datapacks_delete_no_record">Nada que eliminar: no hay registro de una instalación hecha por este lanzador.</string>
+    <string name="online_datapacks_switch_failed">No se pudo cambiar el ajuste. Compruebe que la carpeta de datos permite escritura.</string>
+    <string name="online_card_crossplay">Juego multiplataforma</string>
+    <string name="online_crossplay_help">Las partidas creadas por el cliente de Windows suelen rechazar este dispositivo: son programas distintos y sus sumas de comprobación EXE nunca pueden coincidir.</string>
+    <string name="online_crossplay_patch_found">Parche de datos de la comunidad instalado</string>
+    <string name="online_crossplay_patch_missing">Falta el parche de la comunidad: pulse Actualizar</string>
+    <string name="online_switch_crossplay">Jugar con jugadores de PC</string>
+    <string name="online_switch_crossplay_desc">Informa la suma de comprobación EXE del cliente de Windows para que sus partidas te acepten. Esa suma no es un antitrampas: impide que jueguen juntas máquinas que calcularían la partida de forma distinta, así que esto puede desincronizar la partida para toda la sala. Actívalo para un PC tuyo y solo tras copiar sus datos INI a esta carpeta del juego.</string>
+    <string name="replaycheck_title">Comprobar repetición</string>
+    <string name="replaycheck_row_note">Reproduce una repetición del PC con esta compilación sin mirarla, o salta a un fotograma, y ve dónde se separan las sumas de control.</string>
+    <string name="replaycheck_refresh">Actualizar</string>
+    <string name="replaycheck_last_result">Último resultado</string>
+    <string name="replaycheck_no_result">Todavía no se ha ejecutado ninguna comprobación.</string>
+    <string name="replaycheck_result_match">%1$s: coincide con la grabación en los %2$s de %3$s puntos de control (%4$s fotogramas, %5$s s).</string>
+    <string name="replaycheck_result_mismatch">%1$s: primera discrepancia en el fotograma %2$s, última coincidencia en %3$s. Coincidieron %4$s de %5$s puntos de control (%6$s fotogramas, %7$s s). Envía los registros.</string>
+    <string name="replaycheck_mode">Modo</string>
+    <string name="replaycheck_mode_run">Ejecutar completa</string>
+    <string name="replaycheck_mode_watch">Ver desde fotograma</string>
+    <string name="replaycheck_mode_help">Ejecutar completa: la repetición se simula tan rápido como permite el teléfono, se detiene poco después de la primera discrepancia o al final y vuelve aquí con el resultado. Ver desde fotograma: avanza rápido hasta el fotograma y luego se reproduce normalmente.</string>
+    <string name="replaycheck_frame_label">Fotograma</string>
+    <string name="replaycheck_pick">Repeticiones (toca para iniciar)</string>
+    <string name="replaycheck_none">No hay archivos .rep en %1$s</string>
+    <string name="replaycheck_no_game_folder">Primero elige la carpeta del juego en el lanzador.</string>
+    <string name="replaycheck_need_frame">Introduce el fotograma hasta el que avanzar.</string>
+    <string name="replaycheck_trace_enabled">Rastreo de red activado para la comprobación.</string>
+    <string name="replaycheck_trace_failed">No se pudo activar el rastreo de red; el registro no tendrá los detalles de las sumas de control.</string>
+    <string name="replaycheck_crc_every_frame">Suma de control de cada fotograma</string>
+    <string name="replaycheck_crc_every_frame_help">Además escribe en el registro la suma de control de la lógica de cada fotograma. Sirve para crear una copia de la repetición que el cliente de PC comprueba fotograma a fotograma. Más lento.</string>
 </resources>

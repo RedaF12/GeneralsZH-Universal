@@ -31,6 +31,9 @@
 
 #ifndef _WIN32
 #include <fenv.h>
+#include <map>
+#include <vector>
+#include <string>
 #if defined(__SSE__) || defined(__x86_64__)
 #include <xmmintrin.h>
 #endif
@@ -91,9 +94,11 @@
 #include "GameLogic/CrateSystem.h"
 #include "GameLogic/FPUControl.h"
 #include "GameLogic/GameLogic.h"
+#include "GameNetwork/GeneralsOnline/NextGenMP_defines.h"
 #include "GameLogic/Locomotor.h"
 #include "GameLogic/Object.h"
 #include "GameLogic/Module/AIUpdate.h"
+#include "GameLogic/Module/SupplyTruckAIUpdate.h"
 #include "GameLogic/Module/BodyModule.h"
 #include "GameLogic/Module/CreateModule.h"
 #include "GameLogic/Module/DestroyModule.h"
@@ -123,6 +128,9 @@ extern NGMPGame* TheNGMPGame;
 #endif
 
 #include <rts/profile.h>
+#include "GXTrace.h"
+#include "Common/GXReplayCheck.h"
+#include "Common/GXCrcStream.h"
 
 struct QuitGameException {};
 
@@ -278,6 +286,12 @@ GameLogic::GameLogic()
 {
 	m_background = nullptr;
 	m_CRC = 0;
+	for (Int gxv = 0; gxv < CRC_VARIANT_RING; ++gxv)
+	{
+		m_crcWithRevision[gxv] = 0;
+		m_crcWithoutRevision[gxv] = 0;
+	}
+	m_crcVariantNext = 0;
 	m_isInUpdate = FALSE;
 
 	m_rankPointsToAddAtGameStart = 0;
@@ -294,6 +308,10 @@ GameLogic::GameLogic()
 
 	m_frame = 0;
 	m_hasUpdated = FALSE;
+#if defined(GENERALS_ONLINE_HIGH_FPS_SERVER)
+	m_frameLegacy = 0;
+	m_frameLegacyLast = 0;
+#endif
 	m_frameObjectsChangedTriggerAreas = 0;
 	m_width = 0;
 	m_height = 0;
@@ -483,6 +501,15 @@ void GameLogic::reset()
 	TheScriptEngine->reset();
 
 	m_CRC = 0;
+	for (Int gxv = 0; gxv < CRC_VARIANT_RING; ++gxv)
+	{
+		m_crcWithRevision[gxv] = 0;
+		m_crcWithoutRevision[gxv] = 0;
+	}
+	m_crcVariantNext = 0;
+	// Every game starts on the current GeneralsOnline revision; only a replay from an
+	// older client switches it off, and that must not carry into the next match.
+	s_logicCRCRevision = GO_LOGIC_CRC_REVISION;
 	for(Int i = 0; i < MAX_SLOTS; ++i)
 	{
 		m_progressComplete[i] = FALSE;
@@ -498,6 +525,10 @@ void GameLogic::reset()
 
 	m_frame = 0;
 	m_hasUpdated = FALSE;
+#if defined(GENERALS_ONLINE_HIGH_FPS_SERVER)
+	m_frameLegacy = 0;
+	m_frameLegacyLast = 0;
+#endif
 	m_width = DEFAULT_WORLD_WIDTH;
 	m_height = DEFAULT_WORLD_HEIGHT;
 	m_objList = nullptr;
@@ -904,12 +935,29 @@ static void populateRandomStartPosition( GameInfo *game )
 		if (!slot || !slot->isOccupied() || slot->getPlayerTemplate() == PLAYERTEMPLATE_OBSERVER)
 			continue;
 
+#if defined(GENERALS_ONLINE_IBRA_STARTING_POS_LOGIC)
+		Int posIdx = slot->getStartPos();
+		if (posIdx >= 0 && posIdx < numPlayers)
+		{
+			if (taken[posIdx])
+			{
+				// Duplicate explicit start position: mark as random so it gets reassigned
+				slot->setStartPos(-1);
+			}
+			else
+			{
+				hasStartSpotBeenPicked = TRUE;
+				taken[posIdx] = TRUE;
+			}
+		}
+#else
 		Int posIdx = slot->getStartPos();
 		if (posIdx >= 0 || posIdx >= numPlayers)
 		{
 			hasStartSpotBeenPicked = TRUE;
 			taken[posIdx] = TRUE;
 		}
+#endif
 	}
 
 #if 0  //GS  The old way puts everyone as far apart as possible.
@@ -1191,6 +1239,10 @@ void GameLogic::tryStartNewGame( Bool loadingSaveGame )
 	// reset the frame counter
 	m_frame = 0;
 	m_hasUpdated = FALSE;
+#if defined(GENERALS_ONLINE_HIGH_FPS_SERVER)
+	m_frameLegacy = 0;
+	m_frameLegacyLast = 0;
+#endif
 
 #ifdef DEBUG_CRC
 	// TheSuperHackers @info helmutbuhler 04/09/2025
@@ -1395,6 +1447,11 @@ void GameLogic::tryStartNewGame( Bool loadingSaveGame )
 		updateLoadProgress(LOAD_PROGRESS_POST_PARTICLE_INI_LOAD);
 
 	DEBUG_ASSERTCRASH(m_frame == 0, ("framecounter expected to be 0 here"));
+
+#if defined(GENERALS_ONLINE_HIGH_FPS_SERVER)
+	DEBUG_ASSERTCRASH(m_frameLegacy == 0, ("framecounter expected to be 0 here\n"));
+	DEBUG_ASSERTCRASH(m_frameLegacyLast == 0, ("framecounter expected to be 0 here\n"));
+#endif
 
 	// before loading the map, load the map.ini file in the same directory.
 	loadMapINI( TheGlobalData->m_mapName );
@@ -2745,7 +2802,24 @@ void GameLogic::processCommandList( CommandList *list )
 				{
 					// TheSuperHackers @bugfix Caball009 14/06/2026 Check if player is still connected,
 					// to avoid spurious mismatches at low CRC intervals, e.g. every frame.
-					if (!TheNetwork->isPlayerConnected(it->first))
+					// GeneralsX @bugfix Android port 13/09/2026 Ask about the slot, and only
+					// skip a player whose slot is known to be gone.
+					//
+					// This passed a player index to a function that takes a slot index. They
+					// are different numbering schemes -- a 2-player match ran as players 2
+					// and 3 in slots 0 and 1 -- so the lookup missed every time, every CRC
+					// was skipped as "not connected", and the comparison had nothing left to
+					// compare. This build could not detect a desync at all: a PC-hosted match
+					// ended with a mismatch dialog on the PC naming this device while this
+					// device reported everything fine. The earlier Android-to-Android runs
+					// that "stayed in sync for 9405 frames" were measured with the same
+					// broken check and proved nothing either way.
+					//
+					// The second half matters as much: skipping on a failed lookup is what
+					// silences the check, so an unknown slot (-1) now means "compare it"
+					// rather than "ignore it".
+					const Int slotIndex = ThePlayerList->getSlotIndex(it->first);
+					if (slotIndex >= 0 && !TheNetwork->isPlayerConnected(slotIndex))
 						continue;
 
 					const UnsignedInt crc = it->second;
@@ -2761,6 +2835,11 @@ void GameLogic::processCommandList( CommandList *list )
 					{
 						DEBUG_CRASH(("CRC mismatch!"));
 						sawCRCMismatch = TRUE;
+
+						// GeneralsX @feature Android port 20/09/2026 Say where, not just
+						// that. One of these two is this machine's -- whichever a captured
+						// stream ends on -- and reportEither works that out itself.
+						GXCrcStream::reportEither( referenceCRC, crc );
 					}
 				}
 			}
@@ -2777,7 +2856,58 @@ void GameLogic::processCommandList( CommandList *list )
 					player?player->getPlayerDisplayName().str():L"<NONE>", crcIt->second));
 			}
 #endif // DEBUG_LOGGING
+
+			// GeneralsX @feature Android port 13/09/2026 The block above is
+			// the only account anyone gets of a desync, and DEBUG_LOGGING is
+			// compiled out of the builds players actually run -- so in a
+			// release build the simulations diverge, the game quietly carries
+			// on wrong, and the single surviving trace of it is a flag on the
+			// score screen. That is not enough to answer the question this
+			// port has to answer before it can play against anyone: does its
+			// simulation agree with another machine's, frame for frame.
+			//
+			// So the same facts go out through GX_NET_TRACE, which survives
+			// into release. The frame number matters as much as the CRCs: a
+			// divergence at frame 1 is a different bug from one that appears
+			// ten minutes in.
+			GX_NET_TRACE("DESYNC at frame %u -- %d CRCs from %d players\n",
+				(unsigned)m_frame, (int)m_cachedCRCs.size(), numPlayers);
+			for (CachedCRCMap::const_iterator crcIt = m_cachedCRCs.begin(); crcIt != m_cachedCRCs.end(); ++crcIt)
+			{
+				GX_NET_TRACE("  player %d crc=%08X\n", crcIt->first, crcIt->second);
+			}
+
 			TheNetwork->setSawCRCMismatch();
+		}
+		else if (numPlayers > 1)
+		{
+			// A silent log cannot distinguish "stayed in sync" from "the check
+			// never ran", and for this test those are opposite answers.
+			//
+			// GeneralsX @bugfix Android port 13/09/2026 Print the CRCs, not a
+			// verdict. This used to report "%d players agree" using numPlayers --
+			// which is how many players are in the game, not how many CRCs were
+			// compared and matched -- and a single CRC as if it spoke for all of
+			// them. It said "in sync at frame 105 (2 players agree)" for a match
+			// the PC on the other side ended with a mismatch dialog naming this
+			// device, and a log that confidently disagrees with the other machine
+			// is worse than no log: it sent the search in the wrong direction.
+			//
+			// The comparison above deliberately skips players it does not consider
+			// connected, so a CRC can sit in the map and never be looked at. That
+			// distinction is exactly what has to be visible, hence the per-player
+			// lines and the "(skipped)" marker. Once every CRC interval is not a
+			// flood -- roughly one report every three seconds of play.
+			GX_NET_TRACE("crc check at frame %u -- %d players, %d CRCs\n",
+				(unsigned)m_frame, numPlayers, (int)m_cachedCRCs.size());
+			for (CachedCRCMap::const_iterator crcIt = m_cachedCRCs.begin(); crcIt != m_cachedCRCs.end(); ++crcIt)
+			{
+				const Int reportSlot = ThePlayerList->getSlotIndex(crcIt->first);
+				GX_NET_TRACE("  player %d (slot %d) crc=%08X%s\n",
+					crcIt->first, reportSlot, crcIt->second,
+					(reportSlot >= 0 && !TheNetwork->isPlayerConnected(reportSlot))
+						? " (skipped: not connected)" : "");
+			}
 		}
 	}
 
@@ -3760,10 +3890,233 @@ extern __int64 Total_Load_3D_Assets;
 // ------------------------------------------------------------------------------------------------
 /** Update all objects in the world by invoking their update() methods. */
 // ------------------------------------------------------------------------------------------------
+#if !(defined(_MSC_VER) && defined(_M_IX86))
+extern "C" __attribute__((weak)) void gxMathTraceFrame(unsigned frame);
+
+// GeneralsX @feature Android port 23/09/2026 Who raises the "invalid" floating-point flag.
+// The per-frame fp-flags trace showed it raised in many frames, in windows that match the
+// PC and in the one that does not. It is raised by a NaN, an ordered comparison with a
+// NaN, or a float converted to an integer out of range -- the last being exactly where
+// x86 (0x80000000) and ARM (saturation) produce different integers. GameLogic::update
+// checks the flag after every phase and after every module update, names the culprit and
+// clears it, so each report is one module on one object.
+namespace
+{
+	Bool s_gxFpInvalidThisFrame = FALSE;
+	UnsignedInt s_gxFpBlameLines = 0;
+	std::map<std::string, UnsignedInt> s_gxFpBlameCounts;
+	// per 100-frame window, so the kinds that are new in a diverging window stand out
+	std::map<std::string, UnsignedInt> s_gxFpBlameWindow;
+
+	void gxFpBlame(UnsignedInt frame, const char *phase, const Object *obj, const UpdateModule *u)
+	{
+		if (!fetestexcept(FE_INVALID))
+			return;
+		feclearexcept(FE_INVALID);
+		s_gxFpInvalidThisFrame = TRUE;
+
+		AsciiString moduleName;
+		if (u != nullptr)
+			moduleName = TheNameKeyGenerator->keyToName(u->getModuleNameKey());
+		const char *tmpl = (obj != nullptr && obj->getTemplate() != nullptr) ? obj->getTemplate()->getName().str() : "-";
+		std::string key = std::string(phase) + " " + moduleName.str() + " " + tmpl;
+		UnsignedInt &count = s_gxFpBlameCounts[key];
+		++count;
+		++s_gxFpBlameWindow[key];
+		// every occurrence in the window named by the replay (GXReplayCheck::fpWindow), and
+		// the first of each kind elsewhere
+		UnsignedInt winFrom = 0, winTo = 0;
+		const Bool inWindow = GXReplayCheck::fpWindow(winFrom, winTo) && frame >= winFrom && frame <= winTo;
+		if ((inWindow || count == 1) && s_gxFpBlameLines < 4000)
+		{
+			++s_gxFpBlameLines;
+			GX_NET_TRACE("fp invalid frame %u: %s %s on %s id=%u%s\n", (unsigned)frame, phase,
+				moduleName.isEmpty() ? "-" : moduleName.str(), tmpl,
+				obj != nullptr ? (unsigned)obj->getID() : 0u, count == 1 ? " (first of this kind)" : "");
+		}
+	}
+}
+// Finer attribution from inside a module (AIUpdateInterface::update calls this between its
+// steps); `detail` is appended to the phase, e.g. the AI state id that just ran.
+void gxFpCheckpoint(const char *where, const Object *obj, Int detail)
+{
+	if (!GXTrace::isNetEnabled() || TheGameLogic == nullptr)
+		return;
+	char phase[64];
+	if (detail >= 0)
+		snprintf(phase, sizeof(phase), "%s %d", where, (int)detail);
+	else
+		snprintf(phase, sizeof(phase), "%s", where);
+	gxFpBlame(TheGameLogic->getFrame(), phase, obj, nullptr);
+}
+#define GX_FP_BLAME(phase, obj, u) do { if (GXTrace::isNetEnabled()) gxFpBlame(m_frame, (phase), (obj), (u)); } while (0)
+
+// GeneralsX @feature Android port 23/09/2026 The last four hundred frames of movement, kept in
+// memory and printed at the first replay mismatch.
+//
+// A replay carries the PC's checksum only every hundred frames, and the checkpoint before a
+// divergence matched -- so whatever differs came from those hundred frames. The "crc since"
+// listing says which objects changed between the two checkpoints; this says how, frame by
+// frame: every object whose transform changed, with the twelve matrix words, plus the logic
+// seed. Offline, that turns "Ranger 368 is somewhere else on the PC" into testable
+// hypotheses -- one frame early or late, a different step on its path -- using this
+// device's own intermediate states instead of guesses.
+namespace
+{
+	struct GxObjState { UnsignedInt id; UnsignedInt m[12]; Int aiState; Int boxes; };
+	struct GxFrameRec { UnsignedInt frame; UnsignedInt seed; std::vector<GxObjState> moved; };
+	const Int GX_OBJ_RING = 401;
+	GxFrameRec s_gxObjRing[GX_OBJ_RING];
+	Int s_gxObjRingNext = 0;
+	std::map<UnsignedInt, GxObjState> s_gxObjLast;
+	const Int GX_OBJ_POST = 600;
+	Int s_gxObjPostFrames = 0;
+
+	// Physics and hover-lift inputs, per object per frame (gxPhysNote below).
+	struct GxPhysRec { UnsignedInt frame; UnsignedInt id; Char kind; Int n; UnsignedInt v[12]; };
+	const Int GX_PHYS_RING = 32768;
+	GxPhysRec s_gxPhysRing[GX_PHYS_RING];
+	Int s_gxPhysNext = 0;
+	Int s_gxPhysCount = 0;
+
+	void gxPhysPrint(const GxPhysRec &r)
+	{
+		char words[12 * 9 + 1];
+		Int len = 0;
+		for (Int i = 0; i < r.n; ++i)
+			len += snprintf(words + len, sizeof(words) - len, " %08X", (unsigned)r.v[i]);
+		words[len] = '\0';
+		GX_NET_TRACE("phys trace frame %u: %c id=%u%s\n", (unsigned)r.frame, r.kind, (unsigned)r.id, words);
+	}
+
+	void gxObjTracePrint(const GxFrameRec &rec)
+	{
+		GX_NET_TRACE("obj trace frame %u: seed=%08X moved=%u\n", (unsigned)rec.frame, (unsigned)rec.seed, (unsigned)rec.moved.size());
+		for (size_t i = 0; i < rec.moved.size(); ++i)
+		{
+			const GxObjState &st = rec.moved[i];
+			const Object *obj = TheGameLogic->findObjectByID((ObjectID)st.id);
+			GX_NET_TRACE("obj trace frame %u: id=%u %s ai=%d boxes=%d m=%08X %08X %08X %08X %08X %08X %08X %08X %08X %08X %08X %08X\n",
+				(unsigned)rec.frame, (unsigned)st.id,
+				(obj && obj->getTemplate()) ? obj->getTemplate()->getName().str() : "(gone)",
+				(int)st.aiState, (int)st.boxes,
+				st.m[0], st.m[1], st.m[2], st.m[3], st.m[4], st.m[5], st.m[6], st.m[7], st.m[8], st.m[9], st.m[10], st.m[11]);
+		}
+	}
+
+	void gxObjTraceFrame(UnsignedInt frame)
+	{
+		if (frame == 0)
+		{
+			s_gxObjLast.clear();
+			for (Int i = 0; i < GX_OBJ_RING; ++i) { s_gxObjRing[i].moved.clear(); s_gxObjRing[i].frame = 0; }
+			s_gxObjRingNext = 0;
+		}
+		GxFrameRec &rec = s_gxObjRing[s_gxObjRingNext];
+		s_gxObjRingNext = (s_gxObjRingNext + 1) % GX_OBJ_RING;
+		rec.frame = frame;
+		rec.seed = GetGameLogicRandomSeedCRC();
+		rec.moved.clear();
+		for (Object *obj = TheGameLogic->getFirstObject(); obj != nullptr; obj = obj->getNextObject())
+		{
+			GxObjState st;
+			st.id = (UnsignedInt)obj->getID();
+			memcpy(st.m, obj->getTransformMatrix(), sizeof(st.m));
+			// The AI state and, for supply gatherers, the boxes carried: neither is in the
+			// checksum, but a gatherer that finishes loading a few frames earlier on one
+			// machine only shows in the checksum once it moves -- this says when it decided.
+			const AIUpdateInterface *ai = obj->getAI();
+			st.aiState = (ai != nullptr) ? (Int)ai->getCurrentStateID() : -1;
+			st.boxes = -1;
+			if (ai != nullptr)
+			{
+				const SupplyTruckAIInterface *truck = ai->getSupplyTruckAIInterface();
+				if (truck != nullptr)
+					st.boxes = truck->getNumberBoxes();
+			}
+			std::map<UnsignedInt, GxObjState>::iterator it = s_gxObjLast.find(st.id);
+			if (it == s_gxObjLast.end() || memcmp(it->second.m, st.m, sizeof(st.m)) != 0
+				|| it->second.aiState != st.aiState || it->second.boxes != st.boxes)
+			{
+				rec.moved.push_back(st);
+				s_gxObjLast[st.id] = st;
+			}
+		}
+		if (s_gxObjPostFrames > 0)
+		{
+			--s_gxObjPostFrames;
+			gxObjTracePrint(rec);
+		}
+	}
+}
+
+// Printed once, by the replay checker at the first mismatch. Each line is the state at the
+// START of that logic frame, i.e. after the previous frame's update. After the dump the
+// trace keeps printing live for another GX_OBJ_POST frames, so what a unit does after the
+// checkpoint -- a Chinook leaving the warehouse -- is on record too.
+void gxObjTraceDump()
+{
+	static Bool done = FALSE;
+	if (done || !GXTrace::isNetEnabled())
+		return;
+	done = TRUE;
+	for (Int k = 0; k < GX_OBJ_RING; ++k)
+	{
+		const GxFrameRec &rec = s_gxObjRing[(s_gxObjRingNext + k) % GX_OBJ_RING];
+		if (rec.frame == 0 && rec.moved.empty())
+			continue;
+		gxObjTracePrint(rec);
+	}
+	const UnsignedInt oldest = s_gxObjRing[s_gxObjRingNext].frame;
+	const Int start = (s_gxPhysNext - s_gxPhysCount + GX_PHYS_RING) % GX_PHYS_RING;
+	for (Int k = 0; k < s_gxPhysCount; ++k)
+	{
+		const GxPhysRec &r = s_gxPhysRing[(start + k) % GX_PHYS_RING];
+		if (r.frame >= oldest)
+			gxPhysPrint(r);
+	}
+	s_gxObjPostFrames = GX_OBJ_POST;
+}
+
+// GeneralsX @feature Android port 23/09/2026 What moved an object, not only where it went.
+//
+// USA_Supply.rep parts from the PC at frame 5900 because one spy drone, hovering in place,
+// is two ULPs lower there than here. Its height follows a 78-frame limit cycle driven by the
+// hover lift and the velocity clamp, none of which is in the checksum. Called from
+// PhysicsBehavior::update ('P': height before, acceleration, velocity before and after the
+// clamp, height after, motive) and from Locomotor::handleBehaviorZ ('L': the lift
+// calculation's inputs and output), with the raw float bits, so each rule the PC could be
+// running differently can be replayed offline against the recorded checksum.
+void gxPhysNote(Char kind, UnsignedInt id, const Real *values, Int count)
+{
+	if (!GXTrace::isNetEnabled() || TheGameLogic == nullptr)
+		return;
+	GxPhysRec &r = s_gxPhysRing[s_gxPhysNext];
+	s_gxPhysNext = (s_gxPhysNext + 1) % GX_PHYS_RING;
+	if (s_gxPhysCount < GX_PHYS_RING)
+		++s_gxPhysCount;
+	r.frame = TheGameLogic->getFrame();
+	r.id = id;
+	r.kind = kind;
+	r.n = count < 12 ? count : 12;
+	memcpy(r.v, values, sizeof(Real) * r.n);
+	if (s_gxObjPostFrames > 0)
+		gxPhysPrint(r);
+}
+#else
+#define GX_FP_BLAME(phase, obj, u) do {} while (0)
+#endif
+
 void GameLogic::update()
 {
 	USE_PERF_TIMER(GameLogic_update)
 	PROFILER_SECTION_COLOR(0x4CAF50);
+#if defined(GENERALS_ONLINE_HIGH_FPS_SERVER)
+		if (m_frame % 2 != 0)
+		{
+			m_frameLegacyLast = m_frameLegacy;
+		}
+#endif
 
 	LatchRestore<Bool> inUpdateLatch(m_isInUpdate, TRUE);
 #ifdef DO_UNIT_TIMINGS
@@ -3771,6 +4124,16 @@ void GameLogic::update()
 #endif
 
 	setFPMode();
+
+#if !(defined(_MSC_VER) && defined(_M_IX86))
+	// GeneralsX @feature Android port 23/09/2026 Tell the math trace (ReferenceFloatMath.cpp)
+	// which logic frame is being simulated, so it can count libm calls by call site for a
+	// window of frames. Weak: targets without that file link and simply skip it.
+	if (GXTrace::isNetEnabled() && gxMathTraceFrame != nullptr)
+		gxMathTraceFrame(m_frame);
+	if (GXTrace::isNetEnabled() && isInGame() && !m_startNewGame)
+		gxObjTraceFrame(m_frame);
+#endif
 
 	/// @todo remove this hack
 	if ( m_startNewGame && !TheDisplay->isMoviePlaying())
@@ -3816,6 +4179,7 @@ void GameLogic::update()
 	{
 		TheScriptEngine->UPDATE();
 	}
+	GX_FP_BLAME("ScriptEngine", nullptr, nullptr);
 
 	// TheSuperHackers @info Updates the frozen time status because it may have changed after the script engine update.
 	TheFramePacer->setTimeFrozen(TheGameEngine->isTimeFrozen());
@@ -3828,6 +4192,7 @@ void GameLogic::update()
 	{
 		TheTerrainLogic->UPDATE();
 	}
+	GX_FP_BLAME("TerrainLogic", nullptr, nullptr);
 
 	// force CRC calculation, so we can keep a cache of the last N CRCs.  We do this right where the recorder
 	// would be getting the CRC anyway, so replays can get the CRCs from the exact instant in time as the original.
@@ -3861,6 +4226,25 @@ void GameLogic::update()
 		DEBUG_LOG(("Appended %sCRC on frame %d: %8.8X", isPlayback ? "Playback " : "", m_frame, m_CRC));
 	}
 
+	// GeneralsX @feature Android port 23/09/2026 The checksum of every frame, for a
+	// frame-exact comparison with the PC (see Common/GXReplayCheck.h). Computed at the
+	// same instant as the recorded ones, printed only; nothing is sent or compared.
+	// Multiplayer recordings too: those are the ones compared with the PC.
+	if ((isSoloGameOrReplay || isMPGameOrReplay) && GXReplayCheck::crcEveryFrame())
+	{
+		const UnsignedInt gxFrameCRC = (generateForSolo || generateForMP) ? m_CRC : getCRC( CRC_RECALC );
+		GX_NET_TRACE("crc every frame %u: %08X\n", (unsigned)m_frame, (unsigned)gxFrameCRC);
+	}
+
+	// GeneralsX @feature Android port 24/09/2026 See GXGameLogicRandomSeedCRCAfter().
+	if (GXReplayCheck::rngAheadFrame() != 0 && m_frame == GXReplayCheck::rngAheadFrame())
+	{
+		for (Int k = 0; k <= 60; ++k)
+			fprintf(stderr, "[GX-NET] rng ahead frame %u: +%d draws seed crc %08X\n",
+				(unsigned)m_frame, (int)k, (unsigned)GXGameLogicRandomSeedCRCAfter(k));
+		fflush(stderr);
+	}
+
 	// collect stats
 	if(TheStatsCollector)
 	{
@@ -3876,6 +4260,7 @@ void GameLogic::update()
 	{
 		processCommandList( TheCommandList );
 	}
+	GX_FP_BLAME("Commands", nullptr, nullptr);
 
 #ifdef ALLOW_NONSLEEPY_UPDATES
 	{
@@ -3903,6 +4288,7 @@ void GameLogic::update()
 				#else
 					u->update();
 				#endif
+				GX_FP_BLAME("update", u->friend_getObject(), u);
 
 				m_curUpdateModule = nullptr;
 			}
@@ -3947,6 +4333,7 @@ void GameLogic::update()
 				m_curUpdateModule = u;
 
 				sleepLen = u->update();
+				GX_FP_BLAME("update", u->friend_getObject(), u);
 				DEBUG_ASSERTCRASH(sleepLen > 0, ("you may not return 0 from update"));
 				if (sleepLen < 1)
 					sleepLen = UPDATE_SLEEP_NONE;
@@ -3967,16 +4354,19 @@ void GameLogic::update()
 	{
 		TheAI->UPDATE();
 	}
+	GX_FP_BLAME("AI", nullptr, nullptr);
 
 	// production updates
 	{
 		TheBuildAssistant->UPDATE();
 	}
+	GX_FP_BLAME("BuildAssistant", nullptr, nullptr);
 
 	// update partition info
 	{
 		ThePartitionManager->UPDATE();
 	}
+	GX_FP_BLAME("PartitionManager", nullptr, nullptr);
 
 	//
 	// End of frame clean-up
@@ -3984,6 +4374,7 @@ void GameLogic::update()
 
 	// destroy all pending objects
 	processDestroyList();
+	GX_FP_BLAME("DestroyList", nullptr, nullptr);
 
 	// reset the command list, destroying all messages
 	TheCommandList->reset();
@@ -3991,6 +4382,7 @@ void GameLogic::update()
 	TheWeaponStore->UPDATE();
 	TheLocomotorStore->UPDATE();
 	TheVictoryConditions->UPDATE();
+	GX_FP_BLAME("Stores", nullptr, nullptr);
 
 	{
 		//Handle disabled statii (and re-enable objects once frame matches)
@@ -4002,16 +4394,75 @@ void GameLogic::update()
 			}
 		}
 	}
+	GX_FP_BLAME("DisabledStatus", nullptr, nullptr);
 
 
 
 
+
+#if !(defined(_MSC_VER) && defined(_M_IX86))
+	// GeneralsX @feature Android port 23/09/2026 Which logic frames produced a denormal, a NaN
+	// or an infinity. Those are where x86 and ARM part ways even with identical arithmetic:
+	// flush-to-zero may be on on one machine and not the other, and converting NaN or an
+	// out-of-range float to an integer gives 0x80000000 on x86 but a saturated value on
+	// ARM. setFPMode() clears the flags at the top of every logic update, so what is raised
+	// here was raised by this frame's simulation.
+	if (GXTrace::isNetEnabled())
+	{
+		static UnsignedInt s_fpLines = 0;
+		static UnsignedInt s_fpFrames[4] = { 0, 0, 0, 0 };
+		static UnsignedInt s_fpWindowStart = 0;
+		if (m_frame == 0)
+		{
+			s_fpLines = 0;
+			s_gxFpBlameLines = 0;
+			s_gxFpBlameCounts.clear();
+			s_gxFpBlameWindow.clear();
+			s_fpFrames[0] = s_fpFrames[1] = s_fpFrames[2] = s_fpFrames[3] = 0;
+			s_fpWindowStart = 0;
+		}
+		int raised = fetestexcept(FE_UNDERFLOW | FE_INVALID | FE_DIVBYZERO | FE_OVERFLOW);
+		if (s_gxFpInvalidThisFrame)
+			raised |= FE_INVALID;
+		s_gxFpInvalidThisFrame = FALSE;
+		if (raised & FE_UNDERFLOW) ++s_fpFrames[0];
+		if (raised & FE_INVALID) ++s_fpFrames[1];
+		if (raised & FE_DIVBYZERO) ++s_fpFrames[2];
+		if (raised & FE_OVERFLOW) ++s_fpFrames[3];
+		if (raised != 0 && s_fpLines < 400)
+		{
+			++s_fpLines;
+			GX_NET_TRACE("fp flags frame %u:%s%s%s%s\n", (unsigned)m_frame,
+				(raised & FE_UNDERFLOW) ? " underflow(denormal)" : "",
+				(raised & FE_INVALID) ? " invalid(NaN)" : "",
+				(raised & FE_DIVBYZERO) ? " divbyzero(inf)" : "",
+				(raised & FE_OVERFLOW) ? " overflow(inf)" : "");
+		}
+		if (m_frame % 100 == 99)
+		{
+			GX_NET_TRACE("fp flags frames %u..%u: underflow in %u frames, NaN in %u, div-by-zero in %u, overflow in %u\n",
+				(unsigned)s_fpWindowStart, (unsigned)m_frame, s_fpFrames[0], s_fpFrames[1], s_fpFrames[2], s_fpFrames[3]);
+			for (std::map<std::string, UnsignedInt>::const_iterator it = s_gxFpBlameWindow.begin(); it != s_gxFpBlameWindow.end(); ++it)
+				GX_NET_TRACE("fp invalid frames %u..%u: %s x%u\n", (unsigned)s_fpWindowStart, (unsigned)m_frame,
+					it->first.c_str(), (unsigned)it->second);
+			s_gxFpBlameWindow.clear();
+			s_fpFrames[0] = s_fpFrames[1] = s_fpFrames[2] = s_fpFrames[3] = 0;
+			s_fpWindowStart = m_frame + 1;
+		}
+	}
+#endif
 
 	// increment world time
 	if (!m_startNewGame)
 	{
 		m_frame++;
 		m_hasUpdated = TRUE;
+#if defined(GENERALS_ONLINE_HIGH_FPS_SERVER)
+		if (m_frame % 2 == 0)
+		{
+			m_frameLegacy++;
+		}
+#endif
 	}
 }
 
@@ -4092,6 +4543,32 @@ void GameLogic::removeObjectFromLookupTable( Object *obj )
 // ------------------------------------------------------------------------------------------------
 void GameLogic::registerObject( Object *obj )
 {
+	// GeneralsX @feature Android port 22/09/2026 Say where each object came from.
+	//
+	// A replay of a PC-recorded match showed twelve SupplyPileSmall on frame 0
+	// where the map holds six, six of them gone again by frame 100, and nothing
+	// in the log said who made them or who took them away. Object identity is
+	// part of the lockstep checksum, so a creation this client performs and the
+	// PC client does not moves every later object's id and cannot be seen in the
+	// checksum's single number. The first two frames are where map objects,
+	// starting units and the map's scripts all run, and they are the only frames
+	// worth this much log.
+	//
+	// GeneralsX @tweak Android port 24/09/2026 Whole replay. A match against the PC
+	// desynced at 16800 right after a factory produced an Avenger, and the destroy
+	// trace alone could not say when it appeared. A long match creates a few hundred
+	// objects after the opening, which is cheap next to the checksum trace.
+	if (GXTrace::isNetEnabled())
+	{
+		// The frame number alone is ambiguous: the shell map behind the main menu
+		// is itself a running game with its own frame 0, and reading one game's
+		// opening frames as another's is a mistake this trace has already caused
+		// once. Every line says which game it belongs to.
+		GX_NET_TRACE("obj create mode %d frame %u: id=%u tmpl=%s by=%s\n",
+			(int)m_gameMode, (unsigned)m_frame, (unsigned)obj->getID(),
+			obj->getTemplate() ? obj->getTemplate()->getName().str() : "(none)",
+			GXTrace::currentScript());
+	}
 
 	// add the object to the global list
 	obj->prependToList(&m_objList);
@@ -4170,6 +4647,20 @@ void GameLogic::destroyObject( Object *obj )
 	if (!obj || obj->isDestroyed())
 		return;
 
+	// GeneralsX @feature Android port 22/09/2026 And say who took it away again.
+	// Traced for the whole replay, not just the opening frames: an object that
+	// disappears on one machine and not the other is a divergence whenever it
+	// happens, and destruction is rare enough to afford a line each.
+	if (GXTrace::isNetEnabled())
+	{
+		const Coord3D *objPos = obj->getPosition();
+		GX_NET_TRACE("obj destroy mode %d frame %u: id=%u tmpl=%s pos=%.6f,%.6f by=%s\n",
+			(int)m_gameMode, (unsigned)m_frame, (unsigned)obj->getID(),
+			obj->getTemplate() ? obj->getTemplate()->getName().str() : "(none)",
+			objPos ? objPos->x : 0.0f, objPos ? objPos->y : 0.0f,
+			GXTrace::currentScript());
+	}
+
 	// run the object onDestroy event if provided
 	for (BehaviorModule** m = obj->getBehaviorModules(); *m; ++m)
 	{
@@ -4226,6 +4717,8 @@ UnsignedInt GameLogic::getCRC( Int mode, AsciiString deepCRCFileName )
 
 	XferCRC *xferCRC;
 	AsciiString marker;
+	UnsignedInt gxRevisionResult = 0;
+	Bool gxRevisionResultValid = FALSE;
 	if (deepCRCFileName.isNotEmpty())
 	{
 		xferCRC = NEW XferDeepCRC;
@@ -4255,6 +4748,16 @@ UnsignedInt GameLogic::getCRC( Int mode, AsciiString deepCRCFileName )
 		xferCRC->open(crcName);
 	}
 
+	// GeneralsX @feature Android port 20/09/2026 Record the words this checksum is
+	// built from, so a disagreement with a PC recording can be located rather than
+	// guessed at. Only the whole-state checksum during a logic update; the
+	// per-object ones below open their own XferCRC and leave capture alone.
+	if (isInGameLogicUpdate() && xferCRC->getXferMode() == XFER_CRC)
+	{
+		GXCrcStream::begin( m_frame );
+		xferCRC->gxEnableCapture( TRUE );
+	}
+
 	// calculate CRCs
 	Object *obj;
 	DEBUG_ASSERTCRASH(this == TheGameLogic, ("Not in GameLogic"));
@@ -4263,11 +4766,67 @@ UnsignedInt GameLogic::getCRC( Int mode, AsciiString deepCRCFileName )
 		CRCGEN_LOG(("CRC at start of frame %d is 0x%8.8X", m_frame, xferCRC->getCRC()));
 	}
 
+	GXCrcStream::mark("Objects");
 	marker = "MARKER:Objects";
 	xferCRC->xferAsciiString(&marker);
+	Int objectCountForTrace = 0;
+	// GeneralsX @feature Android port 15/09/2026 Per-object checksums.
+	//
+	// The stage trace narrows a mismatch to "the objects", which on a map carrying
+	// three hundred pieces of scenery is still most of the simulation. Hashing each
+	// object on its own as well costs one small CRC per object on the frames a
+	// checksum is generated anyway, and makes the list diffable: an object whose own
+	// number moves between two frames is one that actually evolves, and on an idle
+	// map that is a very short list. Only with the gx_net_trace.txt marker present.
+	// Three hundred lines per checksum is fine for the two checkpoints a short
+	// replay reaches, and ruinous over a real match, which generates one every
+	// hundred frames for its whole length.
+	//
+	// GeneralsX @tweak Android port 20/09/2026 The cap was frame 100, chosen when
+	// every divergence we had seen was at the first checkpoint. It stopped being
+	// the right number the moment one was not: a replay with two AI opponents
+	// matched at frame 100 and diverged at 200, and the window where it went wrong
+	// was the one window the trace did not cover. A cap that hides exactly the
+	// interesting frames is worse than no cap.
+	//
+	// Default raised to 500 -- five checkpoints, about fifteen hundred lines, still
+	// nothing next to the megabyte of stderr a session produces -- and settable
+	// with GX_TRACE_OBJ_FRAMES for a longer hunt. Read once; 0 turns per-object
+	// tracing off while leaving the stage and RNG traces alone.
+	static const Int s_objTraceLastFrame = []() -> Int {
+		const char *env = getenv("GX_TRACE_OBJ_FRAMES");
+		if (env == nullptr || *env == '\0')
+			return 500;
+		const Int v = atoi(env);
+		return v < 0 ? 0 : v;
+	}();
+
+	const Bool gxTraceObjects = GXTrace::isNetEnabled() && isInGameLogicUpdate()
+		&& xferCRC->getXferMode() == XFER_CRC && m_frame <= (UnsignedInt)s_objTraceLastFrame;
 	for( obj = m_objList; obj; obj=obj->getNextObject() )
 	{
+		if (GXCrcStream::isCapturing())
+			GXCrcStream::markObject( (UnsignedInt)obj->getID(),
+				obj->getTemplate() ? obj->getTemplate()->getName().str() : nullptr );
 		xferCRC->xferSnapshot( obj );
+		++objectCountForTrace;
+		if (gxTraceObjects)
+		{
+			XferCRC objCRC;
+			objCRC.open("perObject");
+			objCRC.xferSnapshot( obj );
+			// The checksum says an object moved, never by how much. Printing the
+			// position and facing alongside it separates the two explanations that
+			// matter: a civilian car actually driving somewhere covers whole map
+			// units, whereas rounding that differs between x86 and arm64 shows up in
+			// the last digits of a coordinate that is otherwise standing still.
+			const Coord3D *objPos = obj->getPosition();
+			GX_NET_TRACE("crc obj frame %u: id=%u crc=%08X pos=%.6f,%.6f,%.6f ang=%.6f tmpl=%s\n",
+				(unsigned)m_frame, (unsigned)obj->getID(), (unsigned)objCRC.getCRC(),
+				objPos ? objPos->x : 0.0f, objPos ? objPos->y : 0.0f, objPos ? objPos->z : 0.0f,
+				obj->getOrientation(),
+				obj->getTemplate() ? obj->getTemplate()->getName().str() : "(none)");
+		}
 	}
 	UnsignedInt seed = GetGameLogicRandomSeedCRC();
 	if (isInGameLogicUpdate())
@@ -4279,10 +4838,32 @@ UnsignedInt GameLogic::getCRC( Int mode, AsciiString deepCRCFileName )
 	{
 		CRCGEN_LOG(("RandomSeed: %d", seed));
 	}
+	GXCrcStream::mark("logic random seed");
 	if (xferCRC->getXferMode() == XFER_CRC)
 	{
 		xferCRC->xferUnsignedInt( &seed );
 	}
+	const Bool gxTraceParts = GXTrace::isNetEnabled() && isInGameLogicUpdate()
+		&& xferCRC->getXferMode() == XFER_CRC;
+	if (gxTraceParts)
+	{
+		// GeneralsX @feature Android port 13/09/2026 The whole-state checksum is a
+		// single number, so a disagreement with another machine says only "these
+		// simulations differ" -- not where. Every section it is accumulated from
+		// gets a line here, so a mismatch can be narrowed to objects, the
+		// partition manager, the player list or the AI before anything is guessed
+		// about why. Only at the frames a CRC is actually generated, and only with
+		// the gx_net_trace.txt marker present.
+		GX_NET_TRACE("crc parts frame %u: afterObjects=%08X seed=%08X\n",
+			(unsigned)m_frame, (unsigned)xferCRC->getCRC(), (unsigned)seed);
+
+		// The seed above is one number: it says the two streams parted, never who
+		// drew. This names the call sites that consumed logic randomness since the
+		// previous checksum, with a count each.
+		GameLogicRandomTallyDump( m_frame );
+	}
+
+	GXCrcStream::mark("ThePartitionManager");
 	marker = "MARKER:ThePartitionManager";
 	xferCRC->xferAsciiString(&marker);
 	xferCRC->xferSnapshot( ThePartitionManager );
@@ -4305,6 +4886,37 @@ UnsignedInt GameLogic::getCRC( Int mode, AsciiString deepCRCFileName )
 	}
 #endif // DEBUG_CRC
 
+	if (gxTraceParts)
+	{
+		GX_NET_TRACE("crc parts frame %u: afterPartition=%08X\n",
+			(unsigned)m_frame, (unsigned)xferCRC->getCRC());
+	}
+
+	// GeneralsX @feature Android port 21/09/2026 Name the players once per checkpoint.
+	//
+	// Every map-reveal action resolves a player by name, and the shroud slots it
+	// writes are indexed by player. If this device built a different player list
+	// from the recording's slots than the machine that recorded it, the reveals land
+	// in different slots and the fog of war -- 92% of this checksum -- parts
+	// wholesale. None of that was visible in a log.
+	if (gxTraceParts && ThePlayerList != nullptr)
+	{
+		AsciiString players;
+		for (Int pi = 0; pi < ThePlayerList->getPlayerCount(); ++pi)
+		{
+			Player *p = ThePlayerList->getNthPlayer(pi);
+			if (p == nullptr)
+				continue;
+			AsciiString one;
+			one.format(" %d:%ls%s", pi, p->getPlayerDisplayName().str(),
+				p->isLocalPlayer() ? "(local)" : "");
+			players.concat(one);
+		}
+		GX_NET_TRACE("crc players frame %u: count=%d%s\n",
+			(unsigned)m_frame, (int)ThePlayerList->getPlayerCount(), players.str());
+	}
+
+	GXCrcStream::mark("ThePlayerList");
 	marker = "MARKER:ThePlayerList";
 	xferCRC->xferAsciiString(&marker);
 	xferCRC->xferSnapshot( ThePlayerList );
@@ -4313,6 +4925,13 @@ UnsignedInt GameLogic::getCRC( Int mode, AsciiString deepCRCFileName )
 		CRCGEN_LOG(("CRC after PlayerList for frame %d is 0x%8.8X", m_frame, xferCRC->getCRC()));
 	}
 
+	if (gxTraceParts)
+	{
+		GX_NET_TRACE("crc parts frame %u: afterPlayerList=%08X\n",
+			(unsigned)m_frame, (unsigned)xferCRC->getCRC());
+	}
+
+	GXCrcStream::mark("TheAI");
 	marker = "MARKER:TheAI";
 	xferCRC->xferAsciiString(&marker);
 	xferCRC->xferSnapshot( TheAI );
@@ -4328,9 +4947,55 @@ UnsignedInt GameLogic::getCRC( Int mode, AsciiString deepCRCFileName )
 		TheGameState->friend_xferSaveDataForCRC(xferCRC, SNAPSHOT_DEEPCRC_LOGICONLY);
 	}
 
+	// GeneralsX @bugfix Android port 23/09/2026 End with the GeneralsOnline revision tag.
+	//
+	// Found by disassembling GeneralsOnlineZH_60.exe from the 22/09 data pack
+	// (092226_QFE1): after the GameSave block its getCRC xfers one more marker,
+	// "MARKER:OfficialLogicCRCRevision", and the UnsignedInt 0x474F0001 -- on every
+	// checksum, whatever the mode. The 28/08 exe (082826_QFE1) ends at TheAI. Nothing
+	// in the simulation changed: appending exactly those words to this device's stream
+	// reproduces the new client's recorded checksums bit for bit (a no-input solo
+	// start and USA.rep), where every hypothesis about the game state had failed.
+	//
+	// Both variants are kept for the last few checkpoints, so a replay from either
+	// client is compared correctly (see adoptLogicCRCRevisionFrom), and the stream
+	// capture only records the tail when it is part of the checksum we report.
+	{
+		const UnsignedInt withoutRevision = xferCRC->getCRC();
+		const Bool captureTail = s_logicCRCRevision != 0;
+		if (!captureTail)
+			xferCRC->gxEnableCapture( FALSE );
+		GXCrcStream::mark("OfficialLogicCRCRevision");
+		marker = "MARKER:OfficialLogicCRCRevision";
+		xferCRC->xferAsciiString(&marker);
+		UnsignedInt revision = GO_LOGIC_CRC_REVISION;
+		xferCRC->xferUnsignedInt(&revision);
+		const UnsignedInt withRevision = xferCRC->getCRC();
+
+		if (isInGameLogicUpdate() && xferCRC->getXferMode() == XFER_CRC)
+		{
+			m_crcWithRevision[m_crcVariantNext] = withRevision;
+			m_crcWithoutRevision[m_crcVariantNext] = withoutRevision;
+			m_crcVariantNext = (m_crcVariantNext + 1) % CRC_VARIANT_RING;
+		}
+		gxRevisionResult = captureTail ? withRevision : withoutRevision;
+		gxRevisionResultValid = TRUE;
+	}
+
+	if (gxTraceParts)
+	{
+		GX_NET_TRACE("crc parts frame %u: afterAI=%08X  (objects counted: %d)\n",
+			(unsigned)m_frame, (unsigned)xferCRC->getCRC(), (int)objectCountForTrace);
+	}
+
 	xferCRC->close();
 
-	UnsignedInt theCRC = xferCRC->getCRC();
+	// GeneralsX @feature Android port 20/09/2026 Seal this frame's capture. It stays
+	// in the ring for a few more checksums, because a peer's value for this frame
+	// does not reach us until several frames later in a live match.
+	GXCrcStream::end();
+
+	UnsignedInt theCRC = gxRevisionResultValid ? gxRevisionResult : xferCRC->getCRC();
 
 	delete xferCRC;
 	xferCRC = nullptr;
@@ -4340,6 +5005,28 @@ UnsignedInt GameLogic::getCRC( Int mode, AsciiString deepCRCFileName )
 		CRCGEN_LOG(("CRC for frame %d is 0x%8.8X", m_frame, theCRC));
 	}
 	return theCRC;
+}
+
+// ------------------------------------------------------------------------------------------------
+UnsignedInt GameLogic::s_logicCRCRevision = GameLogic::GO_LOGIC_CRC_REVISION;
+
+// ------------------------------------------------------------------------------------------------
+Bool GameLogic::adoptLogicCRCRevisionFrom( UnsignedInt recorded, UnsignedInt *ours )
+{
+	for (Int i = 0; i < CRC_VARIANT_RING; ++i)
+	{
+		const UnsignedInt current = s_logicCRCRevision ? m_crcWithRevision[i] : m_crcWithoutRevision[i];
+		const UnsignedInt other = s_logicCRCRevision ? m_crcWithoutRevision[i] : m_crcWithRevision[i];
+		if (ours != nullptr && current != *ours)
+			continue;
+		if (other != recorded || other == current)
+			continue;
+		s_logicCRCRevision = s_logicCRCRevision ? 0 : (UnsignedInt)GO_LOGIC_CRC_REVISION;
+		if (ours != nullptr)
+			*ours = other;
+		return TRUE;
+	}
+	return FALSE;
 }
 
 // ------------------------------------------------------------------------------------------------

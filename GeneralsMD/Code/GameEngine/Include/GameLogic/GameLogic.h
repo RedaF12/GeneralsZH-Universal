@@ -141,8 +141,26 @@ public:
 	UnsignedInt getFrame();										///< Returns the current simulation frame number
 	UnsignedInt getCRC( Int mode = CRC_CACHED, AsciiString deepCRCFileName = AsciiString::TheEmptyString );		///< Returns the CRC
 
+	// GeneralsX @bugfix Android port 23/09/2026 The GeneralsOnline logic-CRC revision tag.
+	// The 23/09/2026 GeneralsOnline client ends every logic CRC with the string
+	// "MARKER:OfficialLogicCRCRevision" and the word 0x474F0001 ("GO", revision 1);
+	// the 28/08/2026 client did not. 0 means "append nothing". See getCRC().
+	enum { GO_LOGIC_CRC_REVISION = 0x474F0001 };
+	static void setLogicCRCRevision( UnsignedInt revision ) { s_logicCRCRevision = revision; }
+	static UnsignedInt getLogicCRCRevision() { return s_logicCRCRevision; }
+	// For a replay: if 'recorded' is what one of our recent checksums would have been
+	// with the revision tag switched the other way, adopt that setting and return the
+	// matching value through *ours. Lets one build play back recordings from both
+	// clients without being told which one made them.
+	Bool adoptLogicCRCRevisionFrom( UnsignedInt recorded, UnsignedInt *ours );
+
 	void setObjectIDCounter( ObjectID nextObjID ) { m_nextObjID = nextObjID; }
 	ObjectID getObjectIDCounter() { return m_nextObjID; }
+#if defined(GENERALS_ONLINE_HIGH_FPS_SERVER)
+	UnsignedInt getFrameLegacy(void);
+	UnsignedInt getFrameLegacyLast(void);
+	bool HasLegacyFrameAdvanced(void);
+#endif
 
 	//-----------------------------------------------------------------------------------------------
 	void setBuildableStatusOverride(const ThingTemplate* tt, BuildableStatus bs);
@@ -387,9 +405,19 @@ private:
 
 	Real m_width, m_height;																	///< Dimensions of the world
 	UnsignedInt m_frame;																		///< Simulation frame number
+#if defined(GENERALS_ONLINE_HIGH_FPS_SERVER)
+	UnsignedInt m_frameLegacy;
+	UnsignedInt m_frameLegacyLast;
+#endif
 
 	// CRC cache system -----------------------------------------------------------------------------
 	UnsignedInt	m_CRC;																			///< Cache of previous CRC value
+	static UnsignedInt s_logicCRCRevision;
+	// Recent checksums with and without the revision tag, for adoptLogicCRCRevisionFrom().
+	enum { CRC_VARIANT_RING = 8 };
+	UnsignedInt m_crcWithRevision[CRC_VARIANT_RING];
+	UnsignedInt m_crcWithoutRevision[CRC_VARIANT_RING];
+	Int m_crcVariantNext;
 	typedef std::map<Int, UnsignedInt> CachedCRCMap;
 	CachedCRCMap m_cachedCRCs;															///< CRCs we've seen this frame
 	Bool m_shouldValidateCRCs;															///< Should we validate CRCs this frame?
@@ -502,6 +530,11 @@ inline GameMode GameLogic::getGameMode() { return m_gameMode; }
 inline Bool GameLogic::isInLanGame() { return (m_gameMode == GAME_LAN); }
 inline Bool GameLogic::isInSkirmishGame() { return (m_gameMode == GAME_SKIRMISH); }
 inline Bool GameLogic::isInMultiplayerGame() { return (m_gameMode == GAME_LAN) || (m_gameMode == GAME_INTERNET) ; }
+#if defined(GENERALS_ONLINE_HIGH_FPS_SERVER)
+inline UnsignedInt GameLogic::getFrameLegacy(void) { return m_frameLegacy; }
+inline UnsignedInt GameLogic::getFrameLegacyLast(void) { return m_frameLegacyLast; }
+inline bool GameLogic::HasLegacyFrameAdvanced(void) { return m_frameLegacy != m_frameLegacyLast; }
+#endif
 inline Bool GameLogic::isInInteractiveGame() const { return isInInteractiveGame(m_gameMode); }
 inline Bool GameLogic::isInReplayGame() { return (m_gameMode == GAME_REPLAY); }
 inline Bool GameLogic::isInInternetGame() { return (m_gameMode == GAME_INTERNET); }

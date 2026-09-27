@@ -99,7 +99,9 @@
 #include "GameLogic/Module/UpdateModule.h"
 #include "GameLogic/Module/UpgradeModule.h"
 
+#include "GXTrace.h"
 #include "GameLogic/Object.h"
+#include "Common/StatsExporter.h"
 #include "GameLogic/PartitionManager.h"
 #include "GameLogic/PolygonTrigger.h"
 #include "GameLogic/ScriptEngine.h"
@@ -748,6 +750,17 @@ Int Object::getTransportSlotCount() const
 		}
 	}
 	return count;
+}
+
+void Object::friend_setContainedBy(Object* containedBy)
+{
+	m_containedBy = containedBy;
+
+#if !RETAIL_COMPATIBLE_CRC
+	// The contained-by frame is part of the lockstep CRC, so it must be stamped on
+	// every path that changes the container, not just onContainedBy/onRemovedFrom.
+	m_containedByFrame = containedBy ? TheGameLogic->getFrame() : 0;
+#endif
 }
 
 const Object* Object::getEnclosingContainedBy() const
@@ -2151,6 +2164,14 @@ void Object::setDisabledUntil( DisabledType type, UnsignedInt frame )
 {
 	Bool edgeCase = !isDisabled();
 
+	// GeneralsX @feature Android port 24/09/2026 A disabled object skips its updates (a
+	// factory stops producing), and the disabled state is not in the lockstep checksum.
+	// Logged only when it changes: dead hulks and debris re-assert DISABLED_HELD every
+	// frame, which was 94% of a replay check's log and a real share of its run time.
+	if( type >= 0 && type < DISABLED_COUNT && m_disabledTillFrame[ type ] != frame )
+		GX_NET_TRACE("disable frame %u: id=%u %s type %d until %u\n", (unsigned)TheGameLogic->getFrame(),
+			(unsigned)getID(), getTemplate()->getName().str(), (int)type, (unsigned)frame);
+
 	if( type < 0 || type >= DISABLED_COUNT )
 	{
 		DEBUG_CRASH( ("Invalid disabled type value %d specified -- doesn't not exist!", type ) );
@@ -2220,7 +2241,7 @@ void Object::setDisabledUntil( DisabledType type, UnsignedInt frame )
 		if ( contain )
 		{
 			Object *rider = (Object*)contain->friend_getRider();
-			if ( rider )
+			if ( rider && !rider->isEffectivelyDead() && rider->m_behaviors )
 			{
 				rider->setDisabledUntil(type, frame);
 			}
@@ -2325,6 +2346,9 @@ Bool Object::clearDisabled( DisabledType type )
 		return FALSE;
 	}
 
+	GX_NET_TRACE("enable frame %u: id=%u %s type %d\n", (unsigned)TheGameLogic->getFrame(),
+		(unsigned)getID(), getTemplate()->getName().str(), (int)type);
+
 	if( type == DISABLED_UNDERPOWERED || type == DISABLED_EMP || type == DISABLED_SUBDUED || type == DISABLED_HACKED )
 	{
 		//We've regained power-- make sure we aren't still disabled by another type.
@@ -2360,7 +2384,7 @@ Bool Object::clearDisabled( DisabledType type )
 	{
 		// We explicitly pass stuff in up in the set, so we need to turn it off if it is a forever type
 		Object *rider = (Object*)contain->friend_getRider();
-		if( rider  &&  (m_disabledTillFrame[ type ] == FOREVER) )
+		if( rider  &&  !rider->isEffectivelyDead()  &&  rider->m_behaviors  &&  (m_disabledTillFrame[ type ] == FOREVER) )
 		{
 			rider->clearDisabled(type);
 		}
@@ -3027,6 +3051,12 @@ void Object::scoreTheKill( const Object *victim )
 		controller->getScoreKeeper()->addObjectDestroyed(victim);
 		controller->addSkillPointsForKill(this, victim);
 		controller->doBountyForKill(this, victim);
+
+		// GeneralsX @feature Android port 23/09/2026 Replay check event record (StatsExporter.h).
+		{
+			const DamageInfo *damageInfo = victim->getBodyModule() ? victim->getBodyModule()->getLastDamageInfo() : nullptr;
+			StatsExporterRecordKill(this, victim, damageInfo);
+		}
 	}
 
 	// Now handle experience, if we can gain any
@@ -4640,6 +4670,7 @@ void Object::onCapture( Player *oldOwner, Player *newOwner )
 
 	// this gets the new owner some points
 	newOwner->getScoreKeeper()->addObjectCaptured(this);
+	StatsExporterRecordCapture(this, oldOwner, newOwner);
 
 	// rip through the behavior modules and call the onCapture for any modules that care
 	for( BehaviorModule **module = m_behaviors; *module; ++module )

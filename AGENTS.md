@@ -64,10 +64,36 @@ Before starting work, read:
 
 ## Build Commands
 
-### Android (no local toolchain needed)
-Push to a `claude/**` branch or trigger manually: **Actions tab → Build Android →
-Run workflow**. CI builds `libmain.so` + DXVK, packages a signed APK, verifies
-`DT_NEEDED`/ABI. For a local build see `docs/port/ANDROID_PORT.md §3`:
+### Android — build locally, do NOT use CI
+**The repository owner has a limited Actions budget and has asked repeatedly for
+local builds only.** A push does NOT trigger CI (the `push:` trigger was removed
+on 01/08/2026 precisely because unattended builds were burning the budget), so
+the only way to start one is `workflow_dispatch` — do not. Build here and copy
+the APK into `apk/`, then push, so the download link is a raw GitHub URL:
+
+```bash
+./scripts/build/android/build-dual-hz.sh   # both engines: libmain.so 30 Hz + libmain60.so 60 Hz
+cp GeneralsXZH-android-local.apk apk/<name>.apk
+```
+
+Use `build-dual-hz.sh`, not `build-local-sandboxed.sh`: the latter leaves
+`SAGE_HIGH_FPS_SIM` at its OFF default and ships a 30 Hz engine only. Both
+engines must be built from the same working tree — if a source edit lands
+between the two passes, the APK carries two engines that differ in more than
+the tick rate.
+
+Work and push on the diagnostics branch (`claude/network-diagnostics`), never directly on
+`main`: `main` only accumulates confirmed results, and is fast-forwarded to the branch when the
+repository owner says so.
+
+Keep only the current build in `apk/`: `git rm` the previous APK when adding a new one. Every
+APK is ~60 MB of permanent git history.
+
+**Give the user the APK link first, at the top of the reply, not at the end.**
+
+CI (`Actions tab → Build Android → Run workflow`) still exists for release
+artifacts and the symbol bundle. For a local build's prerequisites see
+`docs/port/ANDROID_PORT.md §3`:
 ```bash
 git submodule update --init references/fbraz3-dxvk
 export ANDROID_NDK_HOME=~/Android/Sdk/ndk/<version>
@@ -153,6 +179,19 @@ cmake --build build/macos-vulkan --target z_generals
   port came from exactly this -- read
   `docs/WORKDIR/lessons/LESSON-d3d-state-value-semantics.md`, which also records which
   diagnostics were blind to it and why.
+- **Lockstep CRC desync against the PC client**: do NOT start from floating-point
+  theory, and do NOT build a Windows or x86 reference binary -- one was brought up
+  for this and abandoned. The PC client's full source is on the dev machine at
+  `/home/user/generalsonlinedevelopmentteam/gameclient`, so this is a *diff*, and a
+  `.rep` recorded on the PC carries the x86 checksums inside it, so a phone alone
+  can compare frame by frame. The architecture is already measured innocent
+  (aarch64 and x86_64 agree bit-for-bit); what actually differs is the **libm
+  behind identical source** -- the client's VC6 CRT promotes `sinf` to double and
+  evaluates on x87, bionic does not. Read
+  `docs/WORKDIR/lessons/LESSON-cross-play-desync-method.md` **before** forming a
+  hypothesis: it lists what is already ruled out with measurements, which files are
+  audited clean, how to aim the per-object CRC trace (it cut 317 objects to 11),
+  and which replays to ask for.
 - **Slow/stuttering on the native GLES backend**: check the D3D8 **lock/usage flags** before
   anything else. `D3DLOCK_DISCARD`/`D3DLOCK_NOOVERWRITE` and the lock's `offset`/`size` are a
   synchronization contract; dropping them turns every dynamic-buffer update into a GPU stall,

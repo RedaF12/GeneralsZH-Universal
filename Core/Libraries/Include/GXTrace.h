@@ -134,6 +134,68 @@ namespace GXTrace
 		return enabled;
 	}
 
+	// GeneralsX @feature Android port 13/09/2026 [GX-NET] -- every HTTP request the
+	// GeneralsOnline client makes, with the status and body it got back.
+	//
+	// The engine already logs these through NetworkLog, but not usefully for this:
+	// that log lives in the game's own GeneralsOnlineData folder (which the in-app
+	// log export does not collect), and its release-build redaction replaces the
+	// WHOLE response body with "<redacted>" whenever the word "token" appears
+	// anywhere in it -- which is every auth response, i.e. exactly the ones worth
+	// reading. This writes to stderr instead, so it lands in generals-stderr.log
+	// alongside everything else a tester already knows how to send, and it redacts
+	// the token VALUE rather than the response that contained it.
+	//
+	// Sign-in itself happens in the launcher, which keeps its own log of the same
+	// shape (NetworkTrace.java); this is the other half, for everything that goes
+	// wrong after the game starts -- lobbies, matchmaking, the session refresh.
+	inline bool computeNetEnabled()
+	{
+		const char *env = getenv("GX_NET_TRACE");
+		if (env != nullptr && env[0] != '\0' && env[0] != '0') {
+			return true;
+		}
+
+		FILE *marker = fopen("gx_net_trace.txt", "r");
+		if (marker != nullptr) {
+			fclose(marker);
+			return true;
+		}
+
+		return false;
+	}
+
+	inline bool isNetEnabled()
+	{
+		static const bool enabled = computeNetEnabled();
+		return enabled;
+	}
+
+	// GeneralsX @feature Android port 22/09/2026 Who is running right now.
+	//
+	// An object appearing out of nowhere on frame 0 is only diagnosable if the
+	// log says what put it there. The map objects, the multiplayer starting
+	// units and the map's own scripts all reach GameLogic::registerObject
+	// through the same door, and by the time it is reached the call stack no
+	// longer says which one. ScriptEngine parks the running script's name here
+	// for the duration of its execution and clears it afterwards, so a creation
+	// or a destruction can name the script responsible, or say "engine" when no
+	// script was running. Trace-only, single-threaded logic thread, and the
+	// pointer is owned by the script that is still alive for the call's extent.
+	inline const char *&currentScriptSlot()
+	{
+		static const char *name = nullptr;
+		return name;
+	}
+
+	inline void setCurrentScript( const char *name ) { currentScriptSlot() = name; }
+
+	inline const char *currentScript()
+	{
+		const char *name = currentScriptSlot();
+		return (name != nullptr && name[0] != '\0') ? name : "engine";
+	}
+
 }  // namespace GXTrace
 
 // Usage: GX_TRACE("Some_Function: about to do the thing x=%d\n", x);
@@ -165,6 +227,16 @@ namespace GXTrace
 	do {                                                  \
 		if (GXTrace::isAudioEnabled()) {                     \
 			fprintf(stderr, "[GX-AUDIO] " __VA_ARGS__);        \
+			fflush(stderr);                                    \
+		}                                                 \
+	} while (0)
+
+// Usage: GX_NET_TRACE("POST %s -> %ld\n", uri, status);
+// The "[GX-NET] " prefix and the flush are supplied here, as for GX_TRACE.
+#define GX_NET_TRACE(...)                                 \
+	do {                                                  \
+		if (GXTrace::isNetEnabled()) {                       \
+			fprintf(stderr, "[GX-NET] " __VA_ARGS__);          \
 			fflush(stderr);                                    \
 		}                                                 \
 	} while (0)

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Generals Zero Hour</string>
+    <string name="app_name">GeneralsZH</string>
     <string name="common_cancel">Otkazati</string>
 
     <!-- SetupActivity: title / fallback -->
@@ -49,6 +49,17 @@
 
     <!-- SetupActivity: Render Backend card -->
     <string name="setup_card_render_backend">Grafičen backend</string>
+    <string name="setup_card_sim_rate">Častota simulacije</string>
+    <string name="setup_sim_rate_30_short">30 Hz</string>
+    <string name="setup_sim_rate_60_short">60 Hz</string>
+    <string name="setup_sim_rate_30_desc">30 Hz je to, čto imali vse prědšestvujuče verzije tutoj portacije. Igra Android proti Androida rabotaje, no meč proti igrača na Windows izgubi sinhronizaciju.</string>
+    <string name="setup_sim_rate_60_desc">60 Hz je častota klienta GeneralsOnline na Windows i jedina, pri kotoroj možlivo jest igrati s PC. Simulacija děla dvakrat vyše rabotǫ na sekundǫ, tomu na slabšem uređaju igra može iti pomalěje.</string>
+    <string name="setup_sim_rate_help">Častota tika jest utverđena pri buđenju motora, tomu aplikacija nese obě verzije i nalagaje tu, kotorǫ izbereš tutde. Izměna dějstvuje pri slědujučem puščenju igry. Oba igrača v meču mahjǫt iměti istǫ častotǫ.</string>
+    <string name="setup_toast_sim_rate_saved">Častota simulacije sohranjena. Budě dějstvovati pri slědujučem puščenju igry.</string>
+    <string name="online_crossplay_hz_title">Častota simulacije prěključena na 60 Hz</string>
+    <string name="online_crossplay_hz_message">Klient Windows simuluje na 60 Hz, a klient na 30 Hz ne može držati s njim takt, tomu križna igra prěključila tuto uređaje na 60 Hz. Budě dějstvovati pri slědujučem puščenju igry.\n\nRabota simulacije na sekundǫ stane dvakrat vyša. Ako igra pojde pomalěje, izključi križnǫ igrǫ ili vrni 30 Hz v razdělu «Grafika» — no togda igrati budě možno tolko s drugymi igračami na Android na 30 Hz.</string>
+    <string name="online_crossplay_hz_30">Častota simulacije: 30 Hz — sinhronizacija s PC nemožliva</string>
+    <string name="online_crossplay_hz_60">Častota simulacije: 60 Hz — sglasna s klientom na PC</string>
     <string name="setup_render_backend_help">Kotory grafičny API igra upotrěbljaje. Dějstvuje od naslědujučego zapuska igry, ne odrazu.\n\nOpenGL ES (izhodno): nativny renderer, napisany za tot port. Jest izhodnym, ibo rabotaje na vsih dosud prověrenyh uređajah, tože na tyh, gdě Vulkan risuje popsovanu grafiku. Načinaj odsud i směnjaj samo pri pričině.\n\nOpenGL ES + ANGLE: tot že renderer, ale prěz ANGLE od Google, ktory prěvodi jego v Vulkan, město sobstvenogo GLES-drajvera telefona. ANGLE vgraditeljny v tuto aplikaciju, tako ne trěbuje ni minimalnoj versije Androida, ni sistemnoj nastrojki. Často byrše v rabotě, ale menu s mnogymi elementami (nastrojki sråženja) može zaviseti pri prvom otvorenju, poka ANGLE kompiluje potrěbno; vtorično to ne povtori sę, poka ne vyjdeš i ne otvoriš to menu iznova.\n\nVulkan: iznačalny bekend, prěz prěvod Direct3D 8 v Vulkan sredstvami DXVK. Byrše ostalnyh na telefonah, čij drajver s njim spravlja sę \u2014 obyčno svěže Snapdragon. Ale vse zavisi imenno od drajvera, i na někotoryh GPU pojavljajut sę purpurne pjatna, iskrivjena geometrija ili popsovane menu, čego nijakoju nastrojkoju odsud ne popraviti \u2014 soobщali pro PowerVR BXM i Samsung Xclipse. Ako Vulkan vygleda nepravilno na tvojem uređaju, izhodny variant iznačalno jest za to.\n\nRazdely «Svoj drajver Vulkan» i «Konfiguracija DXVK» pokazyvajut sę samo pri izbranom Vulkanu.</string>
     <string name="setup_render_backend_gpu">Tvoj GPU: %1$s</string>
     <string name="setup_render_backend_status">Sejčas: %1$s</string>
@@ -215,4 +226,70 @@
     <string name="setup_render_backend_gles_short">GLES</string>
     <string name="setup_render_backend_gles_angle_short">ANGLE</string>
     <string name="setup_render_backend_vulkan_short">Vulkan</string>
+    <string name="setup_switch_gx_net_trace">Mrežny log online</string>
+    <string name="setup_switch_gx_net_trace_desc">Zapisuje kojžde zaprošenje igry do serverov GeneralsOnline i odpoved, ktora prišla. Vključite, ako vhod, lobby ili podbiranje igry ne rabotaje uže vnutri igry. Zaprošenja samogo launchera zapisujut se vsegda; to dodaje zaprošenja igry. Takože vključaje diagnostiku rozsinhronizacije v krossplatformnoj igre: kontrolne sumy simulacije, ktore sut porovnjane na vsakom intervale, a v repleju — kontrolnu sumu vsakogo objekta. (gx_net_trace.txt)</string>
+    <string name="netdiag_title">Diagnostika mreže</string>
+    <string name="netdiag_row_note">Proveriti, jestli to ustrojstvo dohodi do serverov GeneralsOnline, i sobrati raport za soobčenje o greške.</string>
+    <string name="netdiag_intro">Proverjaje po redu: jest li rabotajuča mreža, razrešajut li se imena serverov GeneralsOnline, odpovedajut li servery i čto oni govoret o vhode.\n\nNičto nikuda ne posylaje se. Tisnite «Pustiti».</string>
+    <string name="netdiag_running">Rabotaje…</string>
+    <string name="netdiag_running_step">Rabotaje… (%1$s)</string>
+    <string name="netdiag_button_run">Pustiti diagnostiku</string>
+    <string name="netdiag_button_share">Podeliti raport</string>
+    <string name="netdiag_button_copy">Kopirovati</string>
+    <string name="netdiag_toast_copied">Raport kopirovany do bufera.</string>
+    <string name="netdiag_toast_share_failed">Ne udalo se podeliti raport: %1$s</string>
+    <string name="netdiag_share_subject">Mrežny log GeneralsZH</string>
+    <string name="online_status_banned">Toj akaunt jest blokovany na GeneralsOnline. Apelaciju možete podati v ihnem Discorde.</string>
+    <string name="online_status_banned_reason">Toj akaunt jest blokovany na GeneralsOnline: %1$s</string>
+    <string name="online_status_requesting_code">Zaprašajemo kod vhoda od servera…</string>
+    <string name="online_status_no_login_code">Server ne vydal kod vhoda. Proverite sopojenje i probujte znovu, ili pustite «Diagnostiku mreže» v Instrumentah.</string>
+    <string name="online_card_datapacks">Podatky mrežnoj igry</string>
+    <string name="online_datapacks_help">Za igru po mreži trěbujut dvě věci, kojih ne jest v samoj igrě: zajedniča zaplata podatkov, od koje zavisi, čto igra iz komputera primi sej pristroj, i zajedniče karty, na kojih te igry idut. Tu obadvě sę tęgajut prěmo iz GeneralsOnline — komputer ne jest potrěbny.</string>
+    <string name="online_button_datapacks_update">Obnoviti</string>
+    <string name="online_datapacks_checking">Prověrjanje obnovlenij…</string>
+    <string name="online_datapacks_downloading">Tęganje… %1$d%%</string>
+    <string name="online_datapacks_installing">Instalovanje…</string>
+    <string name="online_datapacks_done">Obnovjeno do %1$s. Instalovano fajlov: %2$d.</string>
+    <string name="online_datapacks_failed">Obnovlenje ne udalo sę: %1$s</string>
+    <string name="online_datapacks_installed">Instalovano: versija %1$s</string>
+    <string name="online_datapacks_not_installed">Ješče ne instalovano.</string>
+    <string name="online_button_datapacks_delete">Izbrisati</string>
+    <string name="online_switch_datapacks">Upotrěbjati zajedniču zaplatu podatkov</string>
+    <string name="online_switch_datapacks_desc">Vyključenje ne izbriše tęgnutoje, ale igra zase čitaje retail podatky, i igry iz komputera odkažut semu pristroju. Dějstvuje pri sledujučem puščenju igry.</string>
+    <string name="online_datapacks_chip_sign_in_first">Najprvo vojdite</string>
+    <string name="online_datapacks_chip_required">Trěbno za mrežnu igru — pritisnite «Obnoviti»</string>
+    <string name="online_datapacks_chip_off">Tęgnuto, ale vyključeno</string>
+    <string name="online_datapacks_chip_ready">Gotovo do mrežnoj igry</string>
+    <string name="online_datapacks_prompt">Igry, hostovane iz komputera, budut odkazyvati semu pristroju, dokole ne jest instalovana zajedniča zaplata podatkov, i igrajut sę na zajedničih kartah. Tęgnuti oboje sejčas? Okolo 30 MB.</string>
+    <string name="online_datapacks_prompt_later">Pozdněje</string>
+    <string name="online_datapacks_delete_confirm">Izbriva sę samo to, čto sej tęg instalovaŭ. Vaše karty i zapisy ostajut netknute.</string>
+    <string name="online_datapacks_deleted">Izbrisano fajlov: %1$d.</string>
+    <string name="online_datapacks_delete_no_record">Ne jest čto brisati: ne jest zapisi o instalovanju iz sego lanchera.</string>
+    <string name="online_datapacks_switch_failed">Ne udalo sę směniti nastrojku. Prověrite, jest li mapa podatkov zapisyvajema.</string>
+    <string name="online_card_crossplay">Krosplatformna igra</string>
+    <string name="online_crossplay_help">Igry, kreirane Windows-klientom, obyčno odkazujut tomu ustrojstvu: to sut različne programy i ih EXE-sumy nikogda ne mogut sovpasti.</string>
+    <string name="online_crossplay_patch_found">Zajedniča zaplata podatkov instalovana</string>
+    <string name="online_crossplay_patch_missing">Nema zajedničej zaplaty — pritisnite «Obnoviti»</string>
+    <string name="online_switch_crossplay">Igrati s igračami na PC</string>
+    <string name="online_switch_crossplay_desc">Soobčaje kontrolnu sumu EXE Windows-klienta, aby jego igry vas puščali. Ta suma ne jest antičit — ona ne dozvoljaje igrati vmeste mašinam, ktore bi sčitali meč različno, tako to može razvaliti igru vsem v lobby. Vključite za svoj PC i samo poslě kopirovanja jego INI-dannyh v tu papku igry.</string>
+    <string name="replaycheck_title">Provrka replaja</string>
+    <string name="replaycheck_row_note">Prognati replaj s PK na tutoj versiji bez gledanja ili skočiti do kadra i viděti, kde se razhodet kontrolne sumy.</string>
+    <string name="replaycheck_refresh">Obnoviti</string>
+    <string name="replaycheck_last_result">Poslědnji rezultat</string>
+    <string name="replaycheck_no_result">Provrka ješče ne byla zapuščena.</string>
+    <string name="replaycheck_result_match">%1$s: sovpada s zapisom na vsih %2$s iz %3$s kontrolnyh točkah (%4$s kadrov, %5$s s).</string>
+    <string name="replaycheck_result_mismatch">%1$s: prvy rozsinhron na kadru %2$s, poslědnje sovpadenje na %3$s. Sovpalo %4$s iz %5$s kontrolnyh točok (%6$s kadrov, %7$s s). Pošljite logi.</string>
+    <string name="replaycheck_mode">Režim</string>
+    <string name="replaycheck_mode_run">Prognati cělo</string>
+    <string name="replaycheck_mode_watch">Gledati od kadra</string>
+    <string name="replaycheck_mode_help">Prognati cělo: replaj se računaje tako hitro, kako dozvoljaje telefon, zastavjaje se malo po prvom rozsinhronu ili na koncu i vraćaje sjuda s rezultatom. Gledati od kadra: prěmotka do kadra, potom običajno gledanje.</string>
+    <string name="replaycheck_frame_label">Kadr</string>
+    <string name="replaycheck_pick">Replaji (tisnite, da zapustiti)</string>
+    <string name="replaycheck_none">V %1$s nema datotek .rep</string>
+    <string name="replaycheck_no_game_folder">Najprvo izberite papku igry v lanćeru.</string>
+    <string name="replaycheck_need_frame">Vpišite kadr, do kotorogo prěmotati.</string>
+    <string name="replaycheck_trace_enabled">Dlja provrky je vključeno mrěžno slědženje.</string>
+    <string name="replaycheck_trace_failed">Ne udalo se vključiti mrěžno slědženje; v logu ne bude podrobnostij o kontrolnyh sumah.</string>
+    <string name="replaycheck_crc_every_frame">Kontrolna suma každogo kadra</string>
+    <string name="replaycheck_crc_every_frame_help">Dodatno piše v log kontrolnu sumu logiky na každom kadru. Treba, da sobrati kopiju replaja, ktoru klient PK prověri po kadram. Počasněje.</string>
 </resources>

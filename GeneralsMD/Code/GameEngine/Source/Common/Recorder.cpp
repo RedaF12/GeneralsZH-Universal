@@ -23,8 +23,19 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
+#ifndef _WIN32
+// GeneralsX @build Android port 13/09/2026 The compat layer defines min/max as
+// macros for the Windows sources that expect them, and libstdc++'s <chrono>
+// declares members with those names -- so whichever header pulls <chrono> in
+// after them turns it into a wall of syntax errors. Retire the macros here;
+// nothing in this file uses them.
+#undef min
+#undef max
+#endif
 
 #include "Common/Recorder.h"
+#include "GXTrace.h"
+#include "Common/GXCrcStream.h"
 #include "Common/file.h"
 #include "Common/FileSystem.h"
 #include "Common/PlayerList.h"
@@ -43,6 +54,12 @@
 #include "GameNetwork/GameSpy/PeerDefs.h"
 #include "GameNetwork/networkutil.h"
 #include "GameLogic/GameLogic.h"
+#include "Common/GXReplayCheck.h"
+#if !(defined(_MSC_VER) && defined(_M_IX86))
+void gxObjTraceDump();
+void gxCommandTraceDump(UnsignedInt fromFrame);
+#endif
+void gxShroudTraceDump(UnsignedInt fromFrame);
 #if defined(GENERALS_ONLINE)
 #include "GameNetwork/GeneralsOnline/NGMPGame.h"
 extern NGMPGame* TheNGMPGame;
@@ -97,6 +114,34 @@ const char *lastReplayFileName = "00000000";	// a name the user is unlikely to e
 // In order to remain compatible we need to load and save time values with 32 bits.
 // Note that this will overflow on January 18, 2038. @todo Upgrade to 64 bits when we break compatibility.
 typedef int32_t replay_time_t;
+
+// GeneralsX @bugfix Android port 13/09/2026 The replay format stores text as
+// 16-bit code units, so read and write it as 16-bit regardless of wchar_t.
+//
+// readWideChar()/writeChar() move sizeof(WideChar) bytes, and WideChar is
+// wchar_t -- two bytes on Windows, four here. Every string in a replay header
+// was therefore written at double width and read at double width, which is
+// self-consistent on one platform and incompatible between two. A replay
+// recorded on a PC could not even be listed on this device: the three strings
+// in its header consumed twice the bytes they should, the reads walked off into
+// the middle of the file, and the game options came back as the single letter
+// "M" -- a fragment of a UTF-16 string read as ASCII. That failure was silent,
+// and it is why "copy a PC replay across and play it" never worked.
+//
+// Sixteen bits is what retail writes and what every existing replay contains,
+// so this is the format, not a choice. Replays recorded by earlier builds of
+// this port are the ones that are wrong, and they will no longer load.
+static void gxWriteReplayUnicodeString(File* file, const WideChar* text)
+{
+	for (const WideChar* p = text; ; ++p)
+	{
+		const UnsignedShort unit = (UnsignedShort)(*p);
+		file->write(&unit, sizeof(unit));
+		if (*p == L'\0')
+			break;
+	}
+}
+
 
 static time_t startTime;
 static const UnsignedInt startTimeOffset = 6;
@@ -560,8 +605,7 @@ void RecorderClass::startRecording(GameDifficulty diff, Int originalGameMode, In
 	// Print out the name of the replay.
 	UnicodeString replayName;
 	replayName = TheGameText->fetch("GUI:LastReplay");
-	m_file->writeFormat(L"%s", replayName.str());
-	m_file->writeChar(L"\0");
+	gxWriteReplayUnicodeString(m_file, replayName.str());
 
 	// Date and Time
 	SYSTEMTIME systemTime;
@@ -572,10 +616,8 @@ void RecorderClass::startRecording(GameDifficulty diff, Int originalGameMode, In
 	UnicodeString versionString = TheVersion->getUnicodeVersion();
 	UnicodeString versionTimeString = TheVersion->getUnicodeBuildTime();
 	UnsignedInt versionNumber = TheVersion->getVersionNumber();
-	m_file->writeFormat(L"%s", versionString.str());
-	m_file->writeChar(L"\0");
-	m_file->writeFormat(L"%s", versionTimeString.str());
-	m_file->writeChar(L"\0");
+	gxWriteReplayUnicodeString(m_file, versionString.str());
+	gxWriteReplayUnicodeString(m_file, versionTimeString.str());
 	m_file->write(&versionNumber, sizeof(versionNumber));
 	m_file->write(&(TheGlobalData->m_exeCRC), sizeof(TheGlobalData->m_exeCRC));
 	m_file->write(&(TheGlobalData->m_iniCRC), sizeof(TheGlobalData->m_iniCRC));
@@ -905,6 +947,12 @@ Bool RecorderClass::readReplayHeader(ReplayHeader& header)
 	if (m_file == nullptr)
 	{
 		DEBUG_LOG(("Can't open %s (%s)", filepath.str(), header.filename.str()));
+		// GeneralsX @diag Android port 13/09/2026 Every way out of this function
+		// used DEBUG_LOG, which release builds compile away, so a replay that
+		// would not load said nothing at all -- and a replay copied from a PC
+		// simply vanished from the list. Each refusal now names itself.
+		fprintf(stderr, "[GX-REPLAY] header refused: cannot open '%s'\n", filepath.str());
+		fflush(stderr);
 		return FALSE;
 	}
 
@@ -913,6 +961,8 @@ Bool RecorderClass::readReplayHeader(ReplayHeader& header)
 	m_file->read( &genrep, sizeof(s_genrep) - 1 );
 	if ( strncmp(genrep, s_genrep, sizeof(s_genrep) - 1 ) != 0 ) {
 		DEBUG_LOG(("RecorderClass::readReplayHeader - replay file did not have GENREP at the start."));
+		fprintf(stderr, "[GX-REPLAY] header refused: '%s' does not start with GENREP\n", filepath.str());
+		fflush(stderr);
 		m_file->close();
 		m_file = nullptr;
 		return FALSE;
@@ -955,6 +1005,9 @@ Bool RecorderClass::readReplayHeader(ReplayHeader& header)
 	if (!ParseAsciiStringToGameInfo(&m_gameInfo, header.gameOptions))
 	{
 		DEBUG_LOG(("RecorderClass::readReplayHeader - replay file did not have a valid GameInfo string."));
+		fprintf(stderr, "[GX-REPLAY] header refused: game options did not parse -- '%s'\n",
+			header.gameOptions.str());
+		fflush(stderr);
 		m_file->close();
 		m_file = nullptr;
 		return FALSE;
@@ -966,6 +1019,9 @@ Bool RecorderClass::readReplayHeader(ReplayHeader& header)
 	if (header.localPlayerIndex < -1 || header.localPlayerIndex >= MAX_SLOTS)
 	{
 		DEBUG_LOG(("RecorderClass::readReplayHeader - invalid local slot number."));
+		fprintf(stderr, "[GX-REPLAY] header refused: local slot %d out of range\n",
+			header.localPlayerIndex);
+		fflush(stderr);
 		m_gameInfo.endGame();
 		m_gameInfo.reset();
 		m_file->close();
@@ -1041,8 +1097,20 @@ class CRCInfo
 {
 public:
 	CRCInfo(UnsignedInt localPlayer, Bool isMultiplayer);
-	void addCRC(UnsignedInt val);
-	UnsignedInt readCRC();
+	// GeneralsX @bugfix Android port 13/09/2026 Queue each local checksum with
+	// the frame it describes, and match on that instead of on arrival order.
+	//
+	// The queue used to be a bare list paired up by position, with one heuristic
+	// keeping it aligned: skip the first local checksum, but only in multiplayer,
+	// because a recording's first one "somehow doesn't make it through the
+	// network". A PC-recorded skirmish does not contain its frame 0 checksum
+	// either, so playing one back here compared this device's frame 0 against the
+	// recording's frame 100 and called the difference a desync. The numbers in
+	// the log said so outright: the value reported as ours was the frame 0 total.
+	//
+	// Frames are already known on both sides, so nothing has to be assumed.
+	void addCRC(UnsignedInt frame, UnsignedInt val);
+	Bool readCRC(UnsignedInt& out, UnsignedInt& outFrame);
 
 	int GetQueueSize() const { return m_data.size(); }
 
@@ -1055,46 +1123,65 @@ protected:
 
 	Bool m_sawCRCMismatch;
 	Bool m_skippedOne;
-	std::list<UnsignedInt> m_data;
+	std::list< std::pair<UnsignedInt, UnsignedInt> > m_data;   // frame, crc
 	UnsignedInt m_localPlayer;
 };
 
 CRCInfo::CRCInfo(UnsignedInt localPlayer, Bool isMultiplayer)
 {
 	m_localPlayer = localPlayer;
-	m_skippedOne = !isMultiplayer;
 	m_sawCRCMismatch = FALSE;
+
+	// GeneralsX @bugfix Android port 20/09/2026 Restored from the GeneralsOnline
+	// PC client, which is the authority on what a recording means: in a
+	// multiplayer game the first MSG_LOGIC_CRC never reaches the network, so the
+	// recording's checksum stream starts one interval later than this device's
+	// local one. The client therefore drops the first local checksum for
+	// multiplayer replays -- and comparing without that drop is off by exactly
+	// one checkpoint, which reads as a desync at the very first comparison on any
+	// map whose state changes between checkpoints, and as a perfect match on a map
+	// where nothing moves. Both of those are what this port has been reporting.
+	m_skippedOne = !isMultiplayer;
 }
 
-void CRCInfo::addCRC(UnsignedInt val)
+void CRCInfo::addCRC(UnsignedInt frame, UnsignedInt val)
 {
-	// TheSuperHackers @fix helmutbuhler 03/04/2025
-	// In Multiplayer, the first MSG_LOGIC_CRC message somehow doesn't make it through the network.
-	// Perhaps this happens because the network is not yet set up on frame 0.
-	// So we also don't queue up the first local crc message, otherwise the crc
-	// messages wouldn't match up anymore and we'd desync immediately during playback.
 	if (!m_skippedOne)
 	{
 		m_skippedOne = TRUE;
+		if (GXTrace::isNetEnabled())
+		{
+			fprintf(stderr, "[GX-NET] replay crc: dropping this device's first checksum"
+				" (frame %u, %08X) -- multiplayer recording, its own first one was"
+				" never transmitted\n", (unsigned)frame, (unsigned)val);
+			fflush(stderr);
+		}
 		return;
 	}
 
-	m_data.push_back(val);
-	//DEBUG_LOG(("CRCInfo::addCRC() - crc %8.8X pushes list to %d entries (full=%d)", val, m_data.size(), !m_data.empty()));
+	m_data.push_back(std::make_pair(frame, val));
 }
 
-UnsignedInt CRCInfo::readCRC()
+Bool CRCInfo::readCRC(UnsignedInt& out, UnsignedInt& outFrame)
 {
+	// GeneralsX @bugfix Android port 20/09/2026 Pair by arrival order, exactly as
+	// the GeneralsOnline PC client does, instead of searching the queue by frame.
+	//
+	// The frame-matching rule this replaced was written to avoid guessing whether
+	// the recording's first checksum survived. The guess was never needed: the
+	// recording says so itself, in the game mode stored in its header, and the
+	// constructor now reads it. Searching by frame quietly consumed the wrong
+	// entry whenever a checksum message arrived later than its own interval --
+	// which is the normal case for a recording made over a network.
 	if (m_data.empty())
 	{
-		DEBUG_LOG(("CRCInfo::readCRC() - bailing, full=0, size=%d", m_data.size()));
-		return 0;
+		return FALSE;
 	}
 
-	UnsignedInt val = m_data.front();
+	outFrame = m_data.front().first;
+	out = m_data.front().second;
 	m_data.pop_front();
-	//DEBUG_LOG(("CRCInfo::readCRC() - returning %8.8X, full=%d, size=%d", val, !m_data.empty(), m_data.size()));
-	return val;
+	return TRUE;
 }
 
 Bool RecorderClass::sawCRCMismatch() const
@@ -1107,7 +1194,12 @@ void RecorderClass::handleCRCMessage(UnsignedInt newCRC, Int playerIndex, Bool f
 	if (fromPlayback)
 	{
 		//DEBUG_LOG(("RecorderClass::handleCRCMessage() - Adding CRC of %X from %d to m_crcInfo", newCRC, playerIndex));
-		m_crcInfo->addCRC(newCRC);
+		// Keyed by the frame this message is handled on, which is one after the
+		// frame it describes -- a checksum generated during frame N is appended to
+		// the message list and processed on N+1. A recorded checksum is written to
+		// the file on that same N+1, so both sides key alike and the arithmetic
+		// stays out of it.
+		m_crcInfo->addCRC(TheGameLogic->getFrame(), newCRC);
 		return;
 	}
 
@@ -1120,9 +1212,122 @@ void RecorderClass::handleCRCMessage(UnsignedInt newCRC, Int playerIndex, Bool f
 		samePlayer = TRUE;
 	if (samePlayer || (localPlayerIndex < 0))
 	{
-		UnsignedInt playbackCRC = m_crcInfo->readCRC();
+		// A recorded checksum is written to the file on the frame after the one it
+		// describes, so it is this device's previous frame that has to answer for
+		// it. Without a match there is nothing to compare, and saying so is the
+		// point: a missing counterpart is not a desync.
+		// GeneralsX @bugfix Android port 13/09/2026 Look the local checksum up by
+		// the frame this message is handled on, not by the frame it describes.
+		//
+		// Both are queued and consulted on frame N+1; asking for N found nothing,
+		// every interval reported "no checksum for this frame", and the mismatch
+		// dialog stopped appearing -- which looked like the problem being fixed
+		// and was the comparison being switched off.
+		UnsignedInt playbackCRC = 0;
+		UnsignedInt localFrame = 0;
+		const Bool haveLocalCRC = m_crcInfo->readCRC(playbackCRC, localFrame);
+		const UnsignedInt describedFrame = localFrame > 0 ? localFrame - 1 : 0;
+
+		if (!haveLocalCRC)
+		{
+			if (GXTrace::isNetEnabled())
+			{
+				fprintf(stderr, "[GX-NET] replay crc at frame %u: recorded=%08X but this"
+					" device has no checksum queued at or before frame %u -- not compared\n",
+					(unsigned)TheGameLogic->getFrame(), (unsigned)newCRC,
+					(unsigned)TheGameLogic->getFrame());
+				fflush(stderr);
+			}
+			return;
+		}
+		// GeneralsX @bugfix Android port 23/09/2026 Follow the recording's CRC revision.
+		// The 23/09 GeneralsOnline client ends every checksum with a revision tag the
+		// 28/08 client did not have (GameLogic::getCRC). Which one recorded this replay
+		// is settled by the first checkpoint: if the recorded value is our own checksum
+		// with the tag switched the other way, adopt that setting for the rest of the
+		// playback. A real divergence matches neither variant and is reported as before.
+		if (newCRC != playbackCRC && TheGameLogic->adoptLogicCRCRevisionFrom(newCRC, &playbackCRC))
+		{
+			if (GXTrace::isNetEnabled())
+			{
+				fprintf(stderr, "[GX-NET] replay crc: recording uses logic CRC revision %s;"
+					" switching to it (frame %u)\n",
+					GameLogic::getLogicCRCRevision() ? "0x474F0001 (GeneralsOnline 23/09 and later)"
+						: "none (GeneralsOnline 28/08 and earlier)",
+					(unsigned)describedFrame);
+				fflush(stderr);
+			}
+		}
+		GXReplayCheck::noteCheckpoint(describedFrame, newCRC == playbackCRC, playbackCRC, newCRC);
 		//DEBUG_LOG(("RecorderClass::handleCRCMessage() - Comparing CRCs of InGame:%8.8X Replay:%8.8X Frame:%d from Player %d",
 		//	playbackCRC, newCRC, TheGameLogic->getFrame()-m_crcInfo->GetQueueSize()-1, playerIndex));
+		// GeneralsX @feature Android port 13/09/2026 Report every comparison, not a
+		// sample of the agreeing ones.
+		//
+		// A replay recorded on a PC and played back here is the only way to ask
+		// "does this port simulate a game the same way the build that recorded it
+		// did?" without a second person, a server, or a match to spoil -- and the
+		// answer it gives is repeatable, which a live match is not. That makes it
+		// the instrument for chasing the x86/arm64 divergence a PC-hosted match
+		// hits at frame 100, so it should show its work: every interval, the frame
+		// and both CRCs.
+		//
+		// This is one line per CRC interval, roughly one every three seconds of
+		// replayed play, and only when the gx_net_trace.txt marker is present.
+		// GeneralsX @bugfix Android port 13/09/2026 These two were labelled the
+		// wrong way round, and the mislabelling wasted a round of testing.
+		//
+		// newCRC is the value carried by the CRC message being processed, and
+		// during playback those come out of the replay file: GameLogic tags a
+		// locally generated CRC message with isPlayback, so this device's own
+		// checksum arrives with fromPlayback set and is queued by the branch above
+		// rather than compared. What reaches this comparison is the recorded
+		// value, checked against readCRC() -- the local one queued earlier.
+		//
+		// So newCRC is the recording's and playbackCRC is ours, which is what the
+		// stock message a few lines down has always said.
+		if (GXTrace::isNetEnabled() && TheGameLogic->getFrame() > 0)
+		{
+			// GeneralsX @feature Android port 20/09/2026 Print the frame the recorded
+			// checksum arrived on, and how many of ours are still queued. Those two
+			// numbers are what say whether the pairing is aligned: a recorded value
+			// that lands on the same frame as the local one it is compared against,
+			// with an empty queue behind it, is like for like. Without them a
+			// mismatch cannot be told apart from a comparison of two different
+			// frames, which is exactly the doubt that cost a round of testing.
+			fprintf(stderr, "[GX-NET] replay crc for frame %u: ours=%08X recorded=%08X"
+				" (recorded arrived on frame %u, ours queued at %u, %d still queued)%s\n",
+				(unsigned)describedFrame, (unsigned)playbackCRC, (unsigned)newCRC,
+				(unsigned)TheGameLogic->getFrame(), (unsigned)localFrame,
+				m_crcInfo->GetQueueSize(),
+				(newCRC == playbackCRC) ? "" : "  <-- DIVERGED");
+			fflush(stderr);
+		}
+
+		// GeneralsX @feature Android port 20/09/2026 A mismatch used to be the end of
+		// the information: two numbers, and weeks of diffing candidate subsystems.
+		// The checksum's own arithmetic is invertible, so the recording's number can
+		// be walked backwards through our word stream to say which field of which
+		// object the two machines first disagree about. See Common/GXCrcStream.h.
+		if (TheGameLogic->getFrame() > 0 && newCRC != playbackCRC)
+		{
+			GXCrcStream::report( newCRC, playbackCRC );
+			GXCrcStream::diffAgainstPrevious( newCRC, playbackCRC );
+#if !(defined(_MSC_VER) && defined(_M_IX86))
+			gxObjTraceDump();
+			gxCommandTraceDump(describedFrame >= 400 ? describedFrame - 400 : 0);
+#endif
+			gxShroudTraceDump(describedFrame >= 110 ? describedFrame - 110 : 0);
+
+			// Once per session, hand over the whole word stream so the search for a
+			// multi-word difference can happen off the phone. Twelve words of a
+			// transform differing by a rounding step is invisible to a single-word
+			// test, which is all the locator above can do -- and dumping only the
+			// objects section assumed the difference was inside it, which the
+			// backward walk does not actually establish.
+			GXCrcStream::dumpSection( "*", newCRC, playbackCRC );
+		}
+
 		if (TheGameLogic->getFrame() > 0 && newCRC != playbackCRC && !m_crcInfo->sawCRCMismatch())
 		{
 			//Kris: Patch 1.01 November 10, 2003 (integrated changes from Matt Campbell)
@@ -1138,7 +1343,7 @@ void RecorderClass::handleCRCMessage(UnsignedInt newCRC, Int playerIndex, Bool f
 			// TheSuperHackers @info helmutbuhler 03/04/2025
 			// Note: We subtract the queue size from the frame number. This way we calculate the correct frame
 			// the mismatch first happened in case the NetCRCInterval is set to 1 during the game.
-			const UnsignedInt mismatchFrame = TheGameLogic->getFrame() - m_crcInfo->GetQueueSize() - 1;
+			const UnsignedInt mismatchFrame = describedFrame;
 
 			// Now also prints a UI message for it.
 			const UnicodeString mismatchDetailsStr = TheGameText->FETCH_OR_SUBSTITUTE("GUI:CRCMismatchDetails", L"InGame:%8.8X Replay:%8.8X Frame:%d");
@@ -1154,9 +1359,23 @@ void RecorderClass::handleCRCMessage(UnsignedInt newCRC, Int playerIndex, Bool f
 				mismatchFrame, playbackCRC, newCRC);
 			fprintf(stderr, "[GeneralsX] This replay is incompatible with the current map/game-code state.\n");
 
-			// TheSuperHackers @tweak Pause the game on mismatch.
-			// But not when a window with focus is opened, because that can make resuming difficult.
-			if (TheWindowManager->winGetFocus() == nullptr)
+			// GeneralsX @feature Android port 21/09/2026 Keep playing when tracing.
+			//
+			// The stock behaviour pauses on the first mismatch and latches
+			// sawCRCMismatch, so a diverging replay only ever reports one checkpoint.
+			// That is right for a player -- there is nothing to watch after the
+			// simulation has parted -- and wrong for this investigation: every
+			// checkpoint after the first says whether the difference stays the same
+			// size or grows, which separates a one-off (a reveal that happened on one
+			// machine only) from drift (a value that keeps being recomputed wrongly).
+			// Each later checkpoint is also another chance for the locator.
+			if (GXTrace::isNetEnabled())
+			{
+				fprintf(stderr, "[GX-NET] replay crc: continuing past the mismatch so the"
+					" later checkpoints are reported too\n");
+				fflush(stderr);
+			}
+			else if (TheWindowManager->winGetFocus() == nullptr)
 			{
 				Bool pause = TRUE;
 				Bool pauseMusic = FALSE;
@@ -1227,6 +1446,28 @@ Bool RecorderClass::playbackFile(AsciiString filename)
 		return FALSE;
 	}
 
+	// GeneralsX @feature Android port 16/09/2026 Say out loud what is being compared.
+	//
+	// A replay is only a fair test of the simulation if it was recorded by a build
+	// that simulates the same way. The header carries a version string and two
+	// checksums for exactly that, but the Android port computes neither checksum --
+	// both are zero here and in what it writes -- so the compatibility guard cannot
+	// fire, and nothing in the format records the tick rate at all. A replay taken
+	// at 30 Hz therefore plays back on the 60 Hz engine in silence and reports a
+	// checksum mismatch that says nothing about cross-play. Print both sides so the
+	// log shows whether a mismatch is worth investigating.
+	GX_NET_TRACE("replay header: version='%ls' build='%ls' number=%u exeCRC=%08X iniCRC=%08X\n",
+		header.versionString.str(), header.versionTimeString.str(),
+		(unsigned)header.versionNumber, (unsigned)header.exeCRC, (unsigned)header.iniCRC);
+	GX_NET_TRACE("replay header: this build version='%ls' number=%u exeCRC=%08X iniCRC=%08X tick=%d Hz\n",
+		TheVersion->getUnicodeVersion().str(), (unsigned)TheVersion->getVersionNumber(),
+		(unsigned)TheGlobalData->m_exeCRC, (unsigned)TheGlobalData->m_iniCRC,
+		(int)LOGICFRAMES_PER_SECOND);
+	if (TheGlobalData->m_exeCRC == 0 && header.exeCRC == 0)
+	{
+		GX_NET_TRACE("replay header: both exe checksums are zero, so the compatibility guard cannot tell these builds apart -- a checksum mismatch below may only mean the replay predates this engine\n");
+	}
+
 #ifdef DEBUG_CRASHING
 	Bool versionStringDiff = header.versionString != TheVersion->getUnicodeVersion();
 	Bool versionTimeStringDiff = header.versionTimeString != TheVersion->getUnicodeBuildTime();
@@ -1285,10 +1526,7 @@ Bool RecorderClass::playbackFile(AsciiString filename)
 	}
 #endif
 
-	Bool isMultiplayer = m_gameInfo.getSlot(header.localPlayerIndex)->getIP() != 0;
-	m_crcInfo = NEW CRCInfo(header.localPlayerIndex, isMultiplayer);
 	REPLAY_CRC_INTERVAL = m_gameInfo.getCRCInterval();
-	DEBUG_LOG(("Player index is %d, replay CRC interval is %d", m_crcInfo->getLocalPlayer(), REPLAY_CRC_INTERVAL));
 
 	Int difficulty = 0;
 	m_file->read(&difficulty, sizeof(difficulty));
@@ -1300,6 +1538,27 @@ Bool RecorderClass::playbackFile(AsciiString filename)
 
 	Int maxFPS = 0;
 	m_file->read(&maxFPS, sizeof(maxFPS));
+
+	// GeneralsX @bugfix Android port 20/09/2026 Decide "was this a multiplayer
+	// game?" from the mode the recording stores, as the PC client does, not from
+	// whether the local slot carries an IP.
+	//
+	// The checksum queue needs this answer to know whether the recording is
+	// missing its own first checksum, and the construction used to happen before
+	// these header fields were read, so the mode was not available yet and a slot
+	// IP stood in for it. A PC-recorded skirmish has no IP and an online game may
+	// report one either way, so the stand-in decided the pairing wrongly and the
+	// comparison was off by one checkpoint.
+	const Bool isMultiplayer = (m_originalGameMode == GAME_INTERNET || m_originalGameMode == GAME_LAN);
+	m_crcInfo = NEW CRCInfo(header.localPlayerIndex, isMultiplayer);
+	DEBUG_LOG(("Player index is %d, replay CRC interval is %d, isMultiplayer is %d",
+		m_crcInfo->getLocalPlayer(), REPLAY_CRC_INTERVAL, isMultiplayer));
+	if (GXTrace::isNetEnabled())
+	{
+		fprintf(stderr, "[GX-NET] replay header: originalGameMode=%d isMultiplayer=%d crcInterval=%d localPlayer=%d\n",
+			(int)m_originalGameMode, (int)isMultiplayer, (int)REPLAY_CRC_INTERVAL, (int)header.localPlayerIndex);
+		fflush(stderr);
+	}
 
 	DEBUG_LOG(("RecorderClass::playbackFile() - original game was mode %d", m_originalGameMode));
 
@@ -1339,20 +1598,17 @@ UnicodeString RecorderClass::readUnicodeString() {
 	WideChar str[1024] = L"";
 	Int index = 0;
 
-	Int c = m_file->readWideChar();
-	if (c == EOF) {
-		str[index] = 0;
-	}
-	str[index] = c;
-
-	while (index < 1024 && str[index] != 0) {
-		++index;
-		Int c = m_file->readWideChar();
-		if (c == EOF) {
+	// See gxWriteReplayUnicodeString above: the units on disk are 16 bits wide.
+	while (index < 1023) {
+		UnsignedShort unit = 0;
+		if (m_file->read(&unit, sizeof(unit)) != (Int)sizeof(unit)) {
 			str[index] = 0;
 			break;
 		}
-		str[index] = c;
+		str[index] = (WideChar)unit;
+		if (unit == 0)
+			break;
+		++index;
 	}
 	str[1023] = L'\0';
 

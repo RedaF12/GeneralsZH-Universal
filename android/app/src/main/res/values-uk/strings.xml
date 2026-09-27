@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Generals Zero Hour</string>
+    <string name="app_name">GeneralsZH</string>
     <string name="common_cancel">Скасувати</string>
 
     <!-- SetupActivity: title / fallback -->
@@ -49,6 +49,17 @@
 
     <!-- SetupActivity: Render Backend card -->
     <string name="setup_card_render_backend">Графічний бекенд</string>
+    <string name="setup_card_sim_rate">Частота симуляції</string>
+    <string name="setup_sim_rate_30_short">30 Hz</string>
+    <string name="setup_sim_rate_60_short">60 Hz</string>
+    <string name="setup_sim_rate_30_desc">30 Гц — те саме, що в усіх попередніх збірках порту. Гра Android з Android на ній працює, але матч проти гравця на Windows розсинхронізується.</string>
+    <string name="setup_sim_rate_60_desc">60 Гц — стільки рахує клієнт GeneralsOnline на Windows, і лише на цій частоті можлива гра з ПК. Роботи в симуляції вдвічі більше, тож на слабшому пристрої гра може йти повільніше за норму.</string>
+    <string name="setup_sim_rate_help">Частота тику задається під час складання рушія, тому застосунок несе обидві версії та завантажує обрану тут. Зміна набуде чинності під час наступного запуску гри. В обох гравців у матчі частота має збігатися.</string>
+    <string name="setup_toast_sim_rate_saved">Частоту симуляції збережено. Застосується під час наступного запуску гри.</string>
+    <string name="online_crossplay_hz_title">Частоту симуляції перемкнено на 60 Гц</string>
+    <string name="online_crossplay_hz_message">Клієнт Windows рахує на 60 Гц, а клієнт на 30 Гц не може триматися з ним у такт, тож крос-плей перемкнув цей пристрій на 60 Гц. Застосується під час наступного запуску гри.\n\nРоботи в симуляції стане вдвічі більше. Якщо гра піде повільно, вимкніть крос-плей або поверніть 30 Гц у розділі «Графіка» — але тоді грати можна буде лише з іншими гравцями на Android із частотою 30 Гц.</string>
+    <string name="online_crossplay_hz_30">Частота симуляції: 30 Гц — синхронізація з ПК неможлива</string>
+    <string name="online_crossplay_hz_60">Частота симуляції: 60 Гц — збігається з клієнтом на ПК</string>
     <string name="setup_render_backend_help">Який графічний API використовує гра. Діє з наступного запуску гри, не одразу.\n\nOpenGL ES (типовий): нативний рендерер, написаний для цього порту. Обраний типовим, бо працює на всіх перевірених пристроях, зокрема тих, де Vulkan малює зіпсовану картинку. Починайте звідси й змінюйте лише за наявності причини.\n\nOpenGL ES + ANGLE: той самий рендерер, але через ANGLE від Google, який перекладає його у Vulkan, замість власного GLES-драйвера телефона. ANGLE вбудований у застосунок, тож не потребує ні мінімальної версії Android, ні системного налаштування. Часто швидший у роботі, але меню з великою кількістю елементів (налаштування сутички) може підгальмувати під час першого відкриття, поки ANGLE компілює потрібне; повторно це не станеться, доки ви не вийдете й не відкриєте це меню знову.\n\nVulkan: початковий бекенд, через трансляцію Direct3D 8 у Vulkan засобами DXVK. Швидший за інші на телефонах, чий драйвер із ним впорається, — зазвичай свіжі Snapdragon. Але все залежить саме від драйвера, і на деяких GPU з’являються пурпурові плями, спотворена геометрія чи зіпсовані меню, чого жодним налаштуванням звідси не виправити \u2014 повідомляли про PowerVR BXM і Samsung Xclipse. Якщо Vulkan виглядає неправильно на вашому пристрої, типовий варіант існує саме для цього.\n\nРозділи «Власний драйвер Vulkan» і «Конфігурація DXVK» показуються лише за обраного Vulkan.</string>
     <string name="setup_render_backend_gpu">Ваш GPU: %1$s</string>
     <string name="setup_render_backend_status">Зараз: %1$s</string>
@@ -215,4 +226,70 @@
     <string name="setup_render_backend_gles_short">GLES</string>
     <string name="setup_render_backend_gles_angle_short">ANGLE</string>
     <string name="setup_render_backend_vulkan_short">Vulkan</string>
+    <string name="setup_switch_gx_net_trace">Мережевий лог онлайну</string>
+    <string name="setup_switch_gx_net_trace_desc">Записує кожен запит гри до серверів GeneralsOnline і отриману відповідь. Увімкніть, якщо вхід, лобі чи підбір гри не працюють уже всередині гри. Запити самого лаунчера записуються завжди; цей перемикач додає запити гри. Також вмикає діагностику розсинхронізації у кросплатформеній грі: контрольні суми симуляції, які порівнюються на кожному інтервалі, а в повторі — контрольну суму кожного окремого об\'єкта. (gx_net_trace.txt)</string>
+    <string name="netdiag_title">Діагностика мережі</string>
+    <string name="netdiag_row_note">Перевірити, чи дістається пристрій до серверів GeneralsOnline, і зібрати звіт для повідомлення про помилку.</string>
+    <string name="netdiag_intro">Перевірка йде по черзі: чи є робоча мережа, чи розпізнаються імена серверів GeneralsOnline, чи відповідають сервери і що вони кажуть про вхід.\n\nНікуди нічого не надсилається. Натисніть «Запустити».</string>
+    <string name="netdiag_running">Виконується…</string>
+    <string name="netdiag_running_step">Виконується… (%1$s)</string>
+    <string name="netdiag_button_run">Запустити діагностику</string>
+    <string name="netdiag_button_share">Надіслати звіт</string>
+    <string name="netdiag_button_copy">Копіювати</string>
+    <string name="netdiag_toast_copied">Звіт скопійовано в буфер обміну.</string>
+    <string name="netdiag_toast_share_failed">Не вдалося надіслати звіт: %1$s</string>
+    <string name="netdiag_share_subject">Мережевий лог GeneralsZH</string>
+    <string name="online_status_banned">Цей обліковий запис заблоковано на GeneralsOnline. Подати апеляцію можна в їхньому Discord.</string>
+    <string name="online_status_banned_reason">Цей обліковий запис заблоковано на GeneralsOnline: %1$s</string>
+    <string name="online_status_requesting_code">Запитуємо код входу в сервера…</string>
+    <string name="online_status_no_login_code">Сервер не видав код входу. Перевірте з’єднання і спробуйте ще раз або запустіть «Діагностику мережі» в Інструментах.</string>
+    <string name="online_card_datapacks">Мережеві дані гри</string>
+    <string name="online_datapacks_help">Для гри в мережі потрібні дві речі, яких немає у звичайній грі: патч даних спільноти, від якого залежить, чи прийме вас гра з ПК, і карти спільноти, на яких ці ігри йдуть. Тут і те й інше завантажується просто з GeneralsOnline — ПК не потрібен.</string>
+    <string name="online_button_datapacks_update">Оновити</string>
+    <string name="online_datapacks_checking">Перевірка оновлень…</string>
+    <string name="online_datapacks_downloading">Завантаження… %1$d%%</string>
+    <string name="online_datapacks_installing">Встановлення…</string>
+    <string name="online_datapacks_done">Оновлено до %1$s. Встановлено файлів: %2$d.</string>
+    <string name="online_datapacks_failed">Не вдалося оновити: %1$s</string>
+    <string name="online_datapacks_installed">Встановлено: версія %1$s</string>
+    <string name="online_datapacks_not_installed">Ще не встановлено.</string>
+    <string name="online_button_datapacks_delete">Видалити</string>
+    <string name="online_switch_datapacks">Використовувати патч даних спільноти</string>
+    <string name="online_switch_datapacks_desc">Вимкнення не видаляє завантаження, але гра знову читає ретейл-дані, і ігри з ПК відмовлять цьому пристрою. Набуває чинності з наступним запуском гри.</string>
+    <string name="online_datapacks_chip_sign_in_first">Спершу увійдіть</string>
+    <string name="online_datapacks_chip_required">Потрібно для гри в мережі — натисніть «Оновити»</string>
+    <string name="online_datapacks_chip_off">Завантажено, але вимкнено</string>
+    <string name="online_datapacks_chip_ready">Готово до гри в мережі</string>
+    <string name="online_datapacks_prompt">Ігри з ПК відмовлятимуть цьому пристрою, доки не встановлено патч даних спільноти, і грають на них на картах спільноти. Завантажити і те й інше? Близько 30 МБ.</string>
+    <string name="online_datapacks_prompt_later">Пізніше</string>
+    <string name="online_datapacks_delete_confirm">Видаляються лише файли, встановлені цим завантаженням. Ваші карти й збереження не чіпаються.</string>
+    <string name="online_datapacks_deleted">Видалено файлів: %1$d.</string>
+    <string name="online_datapacks_delete_no_record">Видаляти нічого: запису про встановлення з лаунчера немає.</string>
+    <string name="online_datapacks_switch_failed">Не вдалося змінити налаштування. Перевірте, чи доступна тека даних для запису.</string>
+    <string name="online_card_crossplay">Кросплатформна гра</string>
+    <string name="online_crossplay_help">Ігри, створені Windows-клієнтом, зазвичай відмовляють цьому пристрою: це різні програми, і їхні контрольні суми EXE збігтися не можуть.</string>
+    <string name="online_crossplay_patch_found">Патч даних спільноти встановлено</string>
+    <string name="online_crossplay_patch_missing">Немає патча даних спільноти — натисніть «Оновити»</string>
+    <string name="online_switch_crossplay">Грати з гравцями на ПК</string>
+    <string name="online_switch_crossplay_desc">Повідомляє контрольну суму EXE Windows-клієнта, щоб його ігри вас пускали. Ця сума не античит — вона не дає грати разом машинам, які порахували б матч по-різному, тож так можна розвалити гру всім у лобі. Вмикайте для власного ПК і лише скопіювавши з нього INI-дані в теку з грою, щоб вони справді збіглися.</string>
+    <string name="replaycheck_title">Перевірка реплею</string>
+    <string name="replaycheck_row_note">Прогнати реплей з ПК на цій збірці без перегляду або перемотати до потрібного кадру й побачити, де розходяться контрольні суми.</string>
+    <string name="replaycheck_refresh">Оновити</string>
+    <string name="replaycheck_last_result">Останній результат</string>
+    <string name="replaycheck_no_result">Перевірку ще не запускали.</string>
+    <string name="replaycheck_result_match">%1$s: збігається із записом на всіх %2$s з %3$s контрольних точок (%4$s кадрів, %5$s с).</string>
+    <string name="replaycheck_result_mismatch">%1$s: перший розсинхрон на кадрі %2$s, останній збіг на %3$s. Збіглося %4$s з %5$s контрольних точок (%6$s кадрів, %7$s с). Надішліть логи.</string>
+    <string name="replaycheck_mode">Режим</string>
+    <string name="replaycheck_mode_run">Прогнати повністю</string>
+    <string name="replaycheck_mode_watch">Дивитися з кадру</string>
+    <string name="replaycheck_mode_help">Прогнати повністю: реплей рахується так швидко, як дозволяє телефон, зупиняється трохи після першого розсинхрону або в кінці й повертає сюди з підсумком. Дивитися з кадру: перемотування до кадру, далі звичайний перегляд.</string>
+    <string name="replaycheck_frame_label">Кадр</string>
+    <string name="replaycheck_pick">Реплеї (натисніть, щоб запустити)</string>
+    <string name="replaycheck_none">У %1$s немає файлів .rep</string>
+    <string name="replaycheck_no_game_folder">Спочатку виберіть теку з грою в лаунчері.</string>
+    <string name="replaycheck_need_frame">Введіть кадр, до якого перемотати.</string>
+    <string name="replaycheck_trace_enabled">Для перевірки ввімкнено мережеве трасування.</string>
+    <string name="replaycheck_trace_failed">Не вдалося ввімкнути мережеве трасування; у лозі не буде подробиць щодо контрольних сум.</string>
+    <string name="replaycheck_crc_every_frame">Контрольна сума кожного кадру</string>
+    <string name="replaycheck_crc_every_frame_help">Додатково записує в лог контрольну суму логіки на кожному кадрі. Потрібна, щоб зібрати копію реплею, яку клієнт ПК перевірить покадрово. Повільніше.</string>
 </resources>

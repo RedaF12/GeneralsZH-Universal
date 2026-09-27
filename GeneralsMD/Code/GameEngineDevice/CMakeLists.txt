@@ -92,8 +92,6 @@ set(GAMEENGINEDEVICE_SRC
     # Linux SDL3 input devices (Phase 1.5 - TheSuperHackers @build 10/02/2026 Bender)
     Include/SDL3Device/GameClient/SDL3Mouse.h
     Include/SDL3Device/GameClient/SDL3Keyboard.h
-#    Source/MilesAudioDevice/MilesAudioManager.cpp
-#    Source/VideoDevice/Bink/BinkVideoPlayer.cpp
     Source/W3DDevice/Common/System/W3DFunctionLexicon.cpp
 #    Source/W3DDevice/Common/System/W3DRadar.cpp
     Source/W3DDevice/Common/Thing/W3DModuleFactory.cpp
@@ -196,10 +194,45 @@ if(WIN32)
 #        Source/Win32Device/Common/Win32LocalFile.cpp
 #        Source/Win32Device/Common/Win32LocalFileSystem.cpp
         Source/Win32Device/Common/Win32OSDisplay.cpp
-        Source/Win32Device/GameClient/Win32DIKeyboard.cpp
 #        Source/Win32Device/GameClient/Win32DIMouse.cpp
-        Source/Win32Device/GameClient/Win32Mouse.cpp
     )
+    # GeneralsX @bugfix Android port 16/09/2026 Win32Mouse.cpp/Win32DIKeyboard.cpp
+    # (DirectInputKeyboard) are genuinely needed -- W3DMouse.cpp, WinMain.cpp and
+    # W3DGameClient.cpp call into them for real, confirmed by undefined-reference
+    # link errors once everything else compiled -- but they only exist under
+    # Core/GameEngineDevice/Source/Win32Device/GameClient/, not at the relative
+    # path this list otherwise uses (Source/Win32Device/GameClient/ under this
+    # file's own directory, where that GameClient/ subfolder does not exist at
+    # all). An earlier pass here read Core/GameEngineDevice/CMakeLists.txt also
+    # commenting these out as confirmation they were dead weight; that read the
+    # wrong signal -- Core's own copy is commented out because ITS purpose is
+    # producing a shared library these per-project builds already get the real
+    # implementation from elsewhere, not because the class is unused.
+    # Win32CDManager.cpp/.h do not exist anywhere in the tree at all (CD-ROM
+    # management was fully removed), so that one stays out.
+    list(APPEND GAMEENGINEDEVICE_SRC
+        ${CMAKE_SOURCE_DIR}/Core/GameEngineDevice/Source/Win32Device/GameClient/Win32DIKeyboard.cpp
+        ${CMAKE_SOURCE_DIR}/Core/GameEngineDevice/Source/Win32Device/GameClient/Win32Mouse.cpp
+    )
+
+    # GeneralsX @bugfix Android port 16/09/2026 Both genuinely needed on _WIN32 --
+    # Win32GameEngine::createAudioManager()/createVideoPlayer() call into them
+    # directly, confirmed by undefined-reference link errors. MilesAudioManager.cpp
+    # only exists under Core/GameEngineDevice/, like the two files above;
+    # BinkVideoPlayer.cpp has its own local copy right here.
+    # GeneralsX @bugfix Android port 20/09/2026 They were added to the
+    # unconditional source list, which built them on every platform: Android
+    # died with "'mss/mss.h' file not found" 873 objects in. Miles and Bink are
+    # third-party Windows SDKs and the top-level CMakeLists only fetches them
+    # under this same condition, so anything else has neither header to compile
+    # against -- non-Windows already has BinkVideoPlayerStub.cpp in the else
+    # branch below and gets its audio from OpenAL.
+    if(${CMAKE_SIZEOF_VOID_P} EQUAL 4)
+        list(APPEND GAMEENGINEDEVICE_SRC
+            ${CMAKE_SOURCE_DIR}/Core/GameEngineDevice/Source/MilesAudioDevice/MilesAudioManager.cpp
+            Source/VideoDevice/Bink/BinkVideoPlayer.cpp
+        )
+    endif()
 else()
     # Linux-specific files (SDL3, OpenAL+FFmpeg audio, DXVK)
     list(APPEND GAMEENGINEDEVICE_SRC

@@ -49,6 +49,9 @@
 //-----------------------------------------------------------------------------
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
 
+#include "Common/GXCrcStream.h"
+#include "GXTrace.h"
+
 #include "Common/ActionManager.h"
 #include "Common/DiscreteCircle.h"
 #include "Common/GameEngine.h"
@@ -1861,14 +1864,11 @@ void PartitionData::doCircleFill(
 	Int y = cellRadius - 1;
 	Int dec = 3 - 2*cellRadius;
 
-#if RETAIL_COMPATIBLE_CRC
-	// Cell coverage diverges at radii >= 240 between algorithms.
-	Int end = cellRadius - 1;
-	Int& endRef = (cellRadius < 240) ? y : end;
-	for (Int x = 0; x <= endRef; ++x)
-#else
-	for (Int x = 0; x <= y; ++x)
-#endif
+	// The GeneralsOnline client fills the full cellRadius here with no octant bound
+	// and no RETAIL_COMPATIBLE_CRC special case. The set of cells this touches feeds
+	// the shroud and threat grids, which are part of the lockstep CRC, so the loop
+	// shape has to match the client we play against bit for bit.
+	for (Int x = 0; x < cellRadius; x++)
 	{
 		hLineCircle(cellCenterX - x, cellCenterX + x, cellCenterY + y);
 		hLineCircle(cellCenterX - x, cellCenterX + x, cellCenterY - y);
@@ -1901,13 +1901,21 @@ void PartitionData::doCircleFillPrecise(Real centerX, Real centerY, Real radius)
 	ThePartitionManager->worldToCell(centerX + radius, centerY + radius, &maxCellX, &maxCellY);
 
 	Real cellSize = ThePartitionManager->getCellSize();
+	Real halfCellSize = cellSize * 0.5f;
 
 	for (Int x = minCellX; x <= maxCellX; ++x)
 	{
 		for (Int y = minCellY; y <= maxCellY; ++y)
 		{
-			Real cellWorldX = x * cellSize;
-			Real cellWorldY = y * cellSize;
+			// getCellCenterPos returns the world-space center of the cell, accounting for
+			// the m_worldExtents.lo offset; subtracting halfCellSize gives the lower-left
+			// corner, which is what doesCircleOverlapCell expects. Plain x * cellSize drops
+			// the world origin offset, which both desynchronises us from the PC client and
+			// misplaces the cell on any map whose extents do not start at zero.
+			Real cellWorldX, cellWorldY;
+			ThePartitionManager->getCellCenterPos(x, y, cellWorldX, cellWorldY);
+			cellWorldX -= halfCellSize;
+			cellWorldY -= halfCellSize;
 
 			if (doesCircleOverlapCell(centerX, centerY, radius, cellWorldX, cellWorldY, cellSize))
 			{
@@ -4043,6 +4051,63 @@ Bool PartitionManager::findPositionAround( const Coord3D *center,
 // is in Object where Allies make sense.  AddLooker literally just adds a looker for the player you specify.
 // This way, Full map reveals and Observer mode active look will not carry over to all
 // allies.  They'll use the RevealWholeDamnMap series, which call addLooker directly.
+
+// GeneralsX @feature Android port 23/09/2026 Every shroud look and unlook, kept in memory
+// and printed at the first replay mismatch (gxShroudTraceDump, called by the recorder).
+// The fog of war is most of the checksum, and a difference in it is a look taken from
+// another cell or with another radius; the checksum cannot say whose. This can.
+namespace
+{
+	struct GxShroudEvent
+	{
+		UnsignedInt frame;
+		Real x, y, radius;
+		Int cellX, cellY, cellRadius;
+		UnsignedInt mask;
+		Char kind;	// 'R' reveal, 'U' undo reveal, 'C' cover, 'V' undo cover
+	};
+	const Int GX_SHROUD_RING = 8192;
+	GxShroudEvent s_gxShroudRing[GX_SHROUD_RING];
+	Int s_gxShroudNext = 0;
+	Int s_gxShroudCount = 0;
+
+	void gxShroudNote(Char kind, Real x, Real y, Real radius, Int cellX, Int cellY, Int cellRadius, PlayerMaskType mask)
+	{
+		if (!GXTrace::isNetEnabled())
+			return;
+		GxShroudEvent &e = s_gxShroudRing[s_gxShroudNext];
+		s_gxShroudNext = (s_gxShroudNext + 1) % GX_SHROUD_RING;
+		if (s_gxShroudCount < GX_SHROUD_RING)
+			++s_gxShroudCount;
+		e.frame = TheGameLogic ? TheGameLogic->getFrame() : 0;
+		e.x = x; e.y = y; e.radius = radius;
+		e.cellX = cellX; e.cellY = cellY; e.cellRadius = cellRadius;
+		e.mask = (UnsignedInt)mask;
+		e.kind = kind;
+	}
+}
+
+void gxShroudTraceDump(UnsignedInt fromFrame)
+{
+	static Bool done = FALSE;
+	if (done || !GXTrace::isNetEnabled())
+		return;
+	done = TRUE;
+	const Int start = (s_gxShroudNext - s_gxShroudCount + GX_SHROUD_RING) % GX_SHROUD_RING;
+	for (Int k = 0; k < s_gxShroudCount; ++k)
+	{
+		const GxShroudEvent &e = s_gxShroudRing[(start + k) % GX_SHROUD_RING];
+		if (e.frame < fromFrame)
+			continue;
+		UnsignedInt xb, yb, rb;
+		memcpy(&xb, &e.x, 4); memcpy(&yb, &e.y, 4); memcpy(&rb, &e.radius, 4);
+		GX_NET_TRACE("shroud trace frame %u: %c cell=%d,%d r=%d mask=%X x=%.6f y=%.6f radius=%.6f (%08X %08X %08X)\n",
+			(unsigned)e.frame, e.kind, (int)e.cellX, (int)e.cellY, (int)e.cellRadius, (unsigned)e.mask,
+			(double)e.x, (double)e.y, (double)e.radius, (unsigned)xb, (unsigned)yb, (unsigned)rb);
+	}
+}
+
+//-----------------------------------------------------------------------------
 void PartitionManager::doShroudReveal(Real centerX, Real centerY, Real radius, PlayerMaskType playerMask)
 {
 	Int cellCenterX, cellCenterY;
@@ -4051,6 +4116,7 @@ void PartitionManager::doShroudReveal(Real centerX, Real centerY, Real radius, P
 	Int cellRadius = worldToCellDist(radius);
 	if (cellRadius < 1)
 		cellRadius = 1;
+	gxShroudNote('R', centerX, centerY, radius, cellCenterX, cellCenterY, cellRadius, playerMask);
 
 	DiscreteCircle circle(cellCenterX, cellCenterY, cellRadius);
 
@@ -4118,6 +4184,7 @@ void PartitionManager::undoShroudReveal(Real centerX, Real centerY, Real radius,
 	Int cellRadius = worldToCellDist(radius);
 	if (cellRadius < 1)
 		cellRadius = 1;
+	gxShroudNote('U', centerX, centerY, radius, cellCenterX, cellCenterY, cellRadius, playerMask);
 
 	DiscreteCircle circle(cellCenterX, cellCenterY, cellRadius);
 
@@ -4155,6 +4222,7 @@ void PartitionManager::doShroudCover(Real centerX, Real centerY, Real radius, Pl
 	Int cellRadius = worldToCellDist(radius);
 	if (cellRadius < 1)
 		cellRadius = 1;
+	gxShroudNote('C', centerX, centerY, radius, cellCenterX, cellCenterY, cellRadius, playerMask);
 
 	DiscreteCircle circle(cellCenterX, cellCenterY, cellRadius);
 
@@ -4179,6 +4247,7 @@ void PartitionManager::undoShroudCover(Real centerX, Real centerY, Real radius, 
 	Int cellRadius = worldToCellDist(radius);
 	if (cellRadius < 1)
 		cellRadius = 1;
+	gxShroudNote('V', centerX, centerY, radius, cellCenterX, cellCenterY, cellRadius, playerMask);
 
 	DiscreteCircle circle(cellCenterX, cellCenterY, cellRadius);
 
@@ -4650,8 +4719,56 @@ Bool PartitionManager::isClearLineOfSightTerrain(const Object* obj, const Coord3
 void PartitionManager::crc( Xfer *xfer )
 {
 
+	// GeneralsX @feature Android port 21/09/2026 Label this loop for the checksum
+	// locator. The cells are 92% of the whole lockstep checksum on a normal map --
+	// 78415 of 85538 words on the one under investigation -- and each holds only
+	// m_shroudLevel per player plus its own grid coordinates. The coordinates are
+	// constants, identical on every machine, so a difference in this section can
+	// only be a shroud level. A mark every block turns "somewhere in the partition
+	// manager" into a cell range. Marks do not enter the checksum.
+	const Int CELLS_PER_MARK = 128;
+	char label[64];
+
+	// GeneralsX @feature Android port 21/09/2026 Summarise the fog of war per player.
+	//
+	// The engine reveals whole shroud slots before frame 0 -- the replay observer's
+	// permanently, observer slots permanently, and every player's slot when shroud is
+	// off in multiplayer -- so a slot is usually either entirely clear or entirely
+	// shrouded. Three counts per player say which, and that is checkable on its own:
+	// an observer slot that is not clear, or a playing slot that is, is wrong without
+	// needing the other machine's numbers.
+	if (GXTrace::isNetEnabled() && xfer->getXferMode() == XFER_CRC)
+	{
+		for (Int p = 0; p < MAX_PLAYER_COUNT; ++p)
+		{
+			Int clear = 0, fogged = 0, shrouded = 0;
+			for (Int i = 0; i < m_totalCellCount; ++i)
+			{
+				switch (m_cells[i].getShroudStatusForPlayer(p))
+				{
+					case CELLSHROUD_CLEAR:    ++clear; break;
+					case CELLSHROUD_FOGGED:   ++fogged; break;
+					default:                  ++shrouded; break;
+				}
+			}
+			if (clear != 0 || fogged != 0)
+				GX_NET_TRACE("crc shroud frame %u: player %d of %d cells:"
+					" clear=%d fogged=%d shrouded=%d\n",
+					(unsigned)(TheGameLogic ? TheGameLogic->getFrame() : 0),
+					(int)p, (int)m_totalCellCount, (int)clear, (int)fogged, (int)shrouded);
+		}
+	}
+
 	for (Int i=0; i<m_totalCellCount; ++i)
 	{
+		if (GXCrcStream::isCapturing() && (i % CELLS_PER_MARK) == 0)
+		{
+			const Int last = (i + CELLS_PER_MARK - 1 < m_totalCellCount)
+				? i + CELLS_PER_MARK - 1 : m_totalCellCount - 1;
+			snprintf(label, sizeof(label), "cells %d..%d of %d", (int)i, (int)last,
+				(int)m_totalCellCount);
+			GXCrcStream::mark(label);
+		}
 		m_cells[i].crc(xfer);
 	}
 

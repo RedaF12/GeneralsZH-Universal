@@ -33,6 +33,64 @@
 #include "Common/crc.h"
 #include "Common/Debug.h"
 #include "GameLogic/GameLogic.h"
+#include "GameLogic/LogicRandomValue.h"
+#include "GameClient/ClientRandomValue.h"
+#include "GXTrace.h"
+
+#include <cstring>
+#include <map>
+#include <utility>
+
+// GeneralsX @feature Android port 15/09/2026 See RandomValue.h: the lockstep
+// checksum hashes the logic seed, so the one thing worth knowing when two
+// machines' seeds part ways is which call sites drew in between. __FILE__ is a
+// string literal, so its address identifies the call site as cheaply as the
+// line number does and no string is ever copied while tallying.
+namespace
+{
+	typedef std::pair<const char *, Int> LogicDrawSite;
+	std::map<LogicDrawSite, UnsignedInt> theLogicDrawTally;
+	UnsignedInt theLogicDrawTotal = 0;
+
+	inline void tallyLogicDraw( const char *file, Int line )
+	{
+		if (!GXTrace::isNetEnabled())
+			return;
+		++theLogicDrawTally[LogicDrawSite(file, line)];
+		++theLogicDrawTotal;
+	}
+}
+
+void GameLogicRandomTallyReset( void )
+{
+	theLogicDrawTally.clear();
+	theLogicDrawTotal = 0;
+}
+
+void GameLogicRandomTallyDump( UnsignedInt frame )
+{
+	if (!GXTrace::isNetEnabled())
+		return;
+
+	GX_NET_TRACE("crc rng frame %u: draws=%u sites=%u\n",
+		(unsigned)frame, (unsigned)theLogicDrawTotal, (unsigned)theLogicDrawTally.size());
+
+	for (std::map<LogicDrawSite, UnsignedInt>::const_iterator it = theLogicDrawTally.begin();
+		it != theLogicDrawTally.end(); ++it)
+	{
+		const char *file = it->first.first ? it->first.first : "(none)";
+		// Only the tail of the path is useful and the full one is long.
+		const char *slash = strrchr(file, '/');
+		if (slash)
+			file = slash + 1;
+		GX_NET_TRACE("crc rng frame %u:   %s:%d drew %u\n",
+			(unsigned)frame, file, (int)it->first.second, (unsigned)it->second);
+	}
+
+	theLogicDrawTally.clear();
+	theLogicDrawTotal = 0;
+}
+
 
 #undef DEBUG_RANDOM_AUDIO
 #undef DEBUG_RANDOM_CLIENT
@@ -111,6 +169,10 @@ void InitRandom()
 	seedRandom(seconds, theGameLogicSeed);
 	theGameLogicBaseSeed = seconds;
 #endif
+
+	// GeneralsX @feature Android port 20/09/2026 The tally counts draws since the
+	// logic seed was set, which is the quantity two machines can compare.
+	GameLogicRandomTallyReset();
 }
 
 void InitRandom( UnsignedInt seed )
@@ -123,6 +185,8 @@ void InitRandom( UnsignedInt seed )
 	seedRandom(seed, theGameClientSeed);
 	seedRandom(seed, theGameLogicSeed);
 	theGameLogicBaseSeed = seed;
+
+	GameLogicRandomTallyReset();
 
 #ifdef DEBUG_RANDOM_LOGIC
 	DEBUG_LOG(("InitRandom %08lx", seed));
@@ -174,6 +238,23 @@ static UnsignedInt randomValue(UnsignedInt (&seed)[6])
 	}
 
 	return ax;
+}
+
+// GeneralsX @feature Android port 24/09/2026 Diagnostic: the seed checksum the logic
+// generator would have after `draws` more values, computed on a copy (the real state is
+// untouched). The lockstep checksum carries only this CRC, so a client that drew a
+// different number of values in a frame is identified by comparing these with the other
+// client's checksum.
+UnsignedInt GXGameLogicRandomSeedCRCAfter( Int draws )
+{
+	UnsignedInt copy[6];
+	for (Int i = 0; i < 6; ++i)
+		copy[i] = theGameLogicSeed[i];
+	for (Int i = 0; i < draws; ++i)
+		randomValue(copy);
+	CRC c;
+	c.computeCRC(copy, sizeof(copy));
+	return c.get();
 }
 
 //
@@ -280,6 +361,8 @@ Int GetGameLogicRandomValue( int lo, int hi, const char *file, int line )
 
 	const Int rval = ((Int)(randomValue(theGameLogicSeed) % delta)) + lo;
 
+	tallyLogicDraw( file, line );
+
 #ifdef DEBUG_RANDOM_LOGIC
 	DEBUG_LOG(( "%d: GetGameLogicRandomValue = %d (%d - %d), %s line %d",
 		TheGameLogic->getFrame(), rval, lo, hi, file, line ));
@@ -306,6 +389,8 @@ Real GetGameLogicRandomValueReal( Real lo, Real hi, const char *file, int line )
 #endif
 
 	const Real rval = ((Real)(randomValue(theGameLogicSeed)) * theMultFactor) * delta + lo;
+
+	tallyLogicDraw( file, line );
 
 #ifdef DEBUG_RANDOM_LOGIC
 	DEBUG_LOG(( "%d: GetGameLogicRandomValueReal = %f, %s line %d",
@@ -464,4 +549,24 @@ Real GameLogicRandomVariable::getValue() const
 			DEBUG_CRASH(("unsupported DistributionType in GameLogicRandomVariable::getValue"));
 			return 0.0f;
 	}
+}
+
+Int LogicRandomValueClass::GetRandomValueInt( Int lo, Int hi, const char *file, Int line ) const
+{
+	return GetGameLogicRandomValue(lo, hi, file, line);
+}
+
+Real LogicRandomValueClass::GetRandomValueReal( Real lo, Real hi, const char *file, Int line ) const
+{
+	return GetGameLogicRandomValueReal(lo, hi, file, line);
+}
+
+Int ClientRandomValueClass::GetRandomValueInt( Int lo, Int hi, const char *file, Int line ) const
+{
+	return GetGameClientRandomValue(lo, hi, file, line);
+}
+
+Real ClientRandomValueClass::GetRandomValueReal( Real lo, Real hi, const char *file, Int line ) const
+{
+	return GetGameClientRandomValueReal(lo, hi, file, line);
 }

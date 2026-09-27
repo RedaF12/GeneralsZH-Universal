@@ -1346,10 +1346,36 @@ void handleTouchEvent(SDL_Window *window, const SDL_Event &event)
 							// no message in the stream.
 							TheWindowManager->winProcessMouseEvent(GWM_MOUSE_POS, &uiPoint, nullptr);
 
+							// GeneralsX @feature Android port 13/09/2026 A long press on shell UI
+							// is a right-click.
+							//
+							// The menus still expect one. The lobby's player menu -- profile,
+							// add friend, mute -- opens from GLM_RIGHT_CLICKED, which only a
+							// GWM_RIGHT_UP produces, and a touchscreen never sends one; the menu
+							// was unreachable in principle, as was every other right-click
+							// affordance in the shell.
+							//
+							// It belongs HERE rather than in the UI_PRESS branch above, which was
+							// the first place I put it and the wrong one: isRealUiHit() admits
+							// only GWS_PUSH_BUTTON, so a list, a panel or a slider never takes
+							// that path at all -- which is exactly why this direct-to-manager
+							// exchange exists. A list is also the only thing with a right-click
+							// menu to open, and pressing a button is not a gesture that wants one.
+							//
+							// Shell only, because in-game a long press already means
+							// cancelOrDeselect -- a synthesized right-click there was what once
+							// left the camera scrolling forever (see TouchInput.h).
+							const Bool shellLongPress =
+								(TheShell && TheShell->isShellActive()) &&
+								(SDL_GetTicks() - s_touch.downTicks) >= LONG_PRESS_MS;
+
+							const GameWindowMessage downMsg = shellLongPress ? GWM_RIGHT_DOWN : GWM_LEFT_DOWN;
+							const GameWindowMessage upMsg   = shellLongPress ? GWM_RIGHT_UP   : GWM_LEFT_UP;
+
 							const WinInputReturnCode usedDown =
-								TheWindowManager->winProcessMouseEvent(GWM_LEFT_DOWN, &uiPoint, nullptr);
+								TheWindowManager->winProcessMouseEvent(downMsg, &uiPoint, nullptr);
 							const WinInputReturnCode usedUp =
-								TheWindowManager->winProcessMouseEvent(GWM_LEFT_UP, &uiPoint, nullptr);
+								TheWindowManager->winProcessMouseEvent(upMsg, &uiPoint, nullptr);
 
 							// ...and the pointer is gone again, same reason as pushPointerGone().
 							// Direct call rather than a message because this whole exchange is
@@ -1561,6 +1587,7 @@ void handleTouchEvent(SDL_Window *window, const SDL_Event &event)
 					}
 					break;
 				case TouchState::UI_PRESS:
+				{
 					// GeneralsX @bugfix Android port 03/08/2026 Release at the
 					// ORIGINAL anchor (downX/downY), not wherever the finger
 					// ended up (lastX/lastY) -- matches the PENDING tap case
@@ -1572,6 +1599,7 @@ void handleTouchEvent(SDL_Window *window, const SDL_Event &event)
 					// deferred classification instead.
 					pushMousePosition(s_touch.downX, s_touch.downY);
 					pushMouseButton(GameMessage::MSG_RAW_MOUSE_LEFT_BUTTON_UP, s_touch.downX, s_touch.downY);
+
 					pushPointerGone();
 					TouchInput::reportUiHold(0, 0, FALSE);
 					// GeneralsX @bugfix Android port 06/09/2026 Reported: holding a build
@@ -1585,6 +1613,7 @@ void handleTouchEvent(SDL_Window *window, const SDL_Event &event)
 						TouchInput::cancelOrDeselect();
 					}
 					break;
+				}
 				default:
 					break;
 			}
@@ -2275,8 +2304,31 @@ void SDL3GameEngine::pollSDL3Events(void)
 				// Set on both since the eventual entry-field focus change is processed a
 				// few frames later by GameEngine::update(), not synchronously here -- see
 				// updateTextInputState() and m_PendingTextInputRearmFrames.
+				//
+				// GeneralsX @bugfix Android port 13/09/2026 ...but only when the
+				// finger actually landed on a text field. This used to rearm on
+				// every touch anywhere on screen, and in the lobby and chat rooms
+				// the chat box holds focus the whole time -- so tapping a player,
+				// a map, a dropdown or empty space all summoned the on-screen
+				// keyboard again, over and over, with no way to keep it down.
+				// Dismissing it and tapping anything brought it straight back.
 				if (event.type == SDL_EVENT_FINGER_DOWN || event.type == SDL_EVENT_FINGER_UP) {
-					m_PendingTextInputRearmFrames = 20;
+					int winW = 0;
+					int winH = 0;
+					if (m_SDLWindow) {
+						SDL_GetWindowSize(m_SDLWindow, &winW, &winH);
+					}
+
+					GameWindow* touched = (TheWindowManager && winW > 0 && winH > 0)
+						? TheWindowManager->getWindowUnderCursor(
+							(Int)(event.tfinger.x * (float)winW),
+							(Int)(event.tfinger.y * (float)winH))
+						: nullptr;
+
+					if (touched != nullptr &&
+						BitIsSet(touched->winGetStyle(), GWS_ENTRY_FIELD)) {
+						m_PendingTextInputRearmFrames = 20;
+					}
 				}
 				if (m_SDLWindow) {
 					handleTouchEvent(m_SDLWindow, event);

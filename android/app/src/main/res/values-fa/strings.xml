@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Generals Zero Hour</string>
+    <string name="app_name">GeneralsZH</string>
     <string name="common_cancel">لغو</string>
 
     <!-- SetupActivity: title / fallback -->
@@ -49,6 +49,17 @@
 
     <!-- SetupActivity: Render Backend card -->
     <string name="setup_card_render_backend">بک‌اند رندر</string>
+    <string name="setup_card_sim_rate">نرخ شبیه‌سازی</string>
+    <string name="setup_sim_rate_30_short">30 Hz</string>
+    <string name="setup_sim_rate_60_short">60 Hz</string>
+    <string name="setup_sim_rate_30_desc">‏۳۰ هرتز همان چیزی است که همهٔ نسخه‌های پیشین این پورت داشتند. بازی اندروید با اندروید با آن کار می‌کند، اما بازی در برابر بازیکن ویندوز هماهنگی‌اش را از دست می‌دهد.</string>
+    <string name="setup_sim_rate_60_desc">‏۶۰ هرتز همان نرخ کلاینت GeneralsOnline روی ویندوز است و تنها حالتی است که بازی میان‌سکویی را ممکن می‌کند. کار شبیه‌سازی در هر ثانیه دو برابر می‌شود، پس ممکن است دستگاه کندتر به سرعت کامل نرسد.</string>
+    <string name="setup_sim_rate_help">نرخ تیک هنگام ساخت موتور تثبیت می‌شود، بنابراین برنامه هر دو نسخه را همراه دارد و همانی را بار می‌کند که اینجا انتخاب می‌کنید. تغییر از اجرای بعدی بازی اعمال می‌شود. هر دو بازیکن یک مسابقه باید نرخ یکسانی داشته باشند.</string>
+    <string name="setup_toast_sim_rate_saved">نرخ شبیه‌سازی ذخیره شد. از اجرای بعدی بازی اعمال می‌شود.</string>
+    <string name="online_crossplay_hz_title">نرخ شبیه‌سازی به ۶۰ هرتز تغییر کرد</string>
+    <string name="online_crossplay_hz_message">کلاینت ویندوز با ۶۰ هرتز شبیه‌سازی می‌کند و کلاینت ۳۰ هرتزی نمی‌تواند با آن هم‌گام بماند، پس بازی میان‌سکویی این دستگاه را به ۶۰ هرتز تغییر داد. از اجرای بعدی بازی اعمال می‌شود.\n\nاین کار شبیه‌سازی در هر ثانیه را دو برابر می‌کند. اگر بازی کند شد، بازی میان‌سکویی را خاموش کنید یا نرخ را در بخش «گرافیک» به ۳۰ هرتز برگردانید — اما آنگاه فقط با بازیکنان اندرویدی دیگر روی ۳۰ هرتز می‌توانید بازی کنید.</string>
+    <string name="online_crossplay_hz_30">نرخ شبیه‌سازی: ۳۰ هرتز — هم‌گامی با رایانه ممکن نیست</string>
+    <string name="online_crossplay_hz_60">نرخ شبیه‌سازی: ۶۰ هرتز — مطابق کلاینت رایانه</string>
     <string name="setup_render_backend_help">بازی از کدام رابط گرافیکی استفاده کند. در اجرای بعدی بازی اثر می‌کند، نه بی‌درنگ.\n\nOpenGL ES (پیش‌فرض): یک رندرگر بومی که برای همین نسخه نوشته شده است. پیش‌فرض است چون روی هر دستگاهی که تاکنون آزموده شده کار می‌کند، از جمله دستگاه‌هایی که Vulkan روی آن‌ها تصویر خراب می‌کشد. از همین‌جا شروع کنید و تنها با دلیل تغییرش دهید.\n\nOpenGL ES + ANGLE: همان رندرگر، اما به‌جای درایور GLES خود گوشی از ANGLE گوگل می‌گذرد که آن را به Vulkan ترجمه می‌کند. ANGLE درون همین برنامه جای گرفته، پس نه نسخه حداقلی اندروید می‌خواهد و نه تنظیمی در سیستم. پس از راه‌افتادن معمولاً سریع‌تر است، هرچند منویی با عناصر فراوان (تنظیمات نبرد کوتاه) ممکن است بار نخست کمی گیر کند تا ANGLE آنچه لازم است را ترجمه کند؛ تا وقتی از آن منو بیرون نروید و دوباره بازش نکنید تکرار نمی‌شود.\n\nVulkan: پشتوانه اصلی، از راه ترجمه Direct3D 8 به Vulkan توسط DXVK. روی گوشی‌هایی که درایورشان از پس آن برمی‌آید، معمولاً اسنپدراگون‌های تازه، از بقیه سریع‌تر است. اما کاملاً به همان درایور وابسته است و روی برخی پردازنده‌های گرافیکی لکه‌های سرخابی، هندسه درهم‌ریخته یا منوهای خراب پدید می‌آورد که هیچ تنظیمی در اینجا آن را درست نمی‌کند \u2014 از PowerVR BXM و Samsung Xclipse گزارش شده است. اگر Vulkan روی دستگاه شما نادرست به نظر می‌رسد، گزینه پیش‌فرض دقیقاً برای همین است.\n\nبخش‌های «درایور Vulkan سفارشی» و «پیکربندی DXVK» تنها با انتخاب Vulkan نمایان می‌شوند.</string>
     <string name="setup_render_backend_gpu">پردازنده گرافیکی شما: %1$s</string>
     <string name="setup_render_backend_status">کنونی: %1$s</string>
@@ -215,4 +226,70 @@
     <string name="setup_render_backend_gles_short">GLES</string>
     <string name="setup_render_backend_gles_angle_short">ANGLE</string>
     <string name="setup_render_backend_vulkan_short">Vulkan</string>
+    <string name="setup_switch_gx_net_trace">گزارش شبکهٔ آنلاین</string>
+    <string name="setup_switch_gx_net_trace_desc">هر درخواستی را که بازی به سرورهای GeneralsOnline می‌فرستد به همراه پاسخ آن ثبت می‌کند. اگر ورود، لابی یا همسان‌سازی داخل خود بازی شکست می‌خورد این را روشن کنید. درخواست‌های خودِ لانچر همیشه ثبت می‌شوند؛ این گزینه درخواست‌های بازی را اضافه می‌کند. همچنین تشخیص ناهمگامی در بازی میان‌سکویی را روشن می‌کند: مجموع‌های کنترلی شبیه‌سازی که در هر بازه مقایسه می‌شوند و در بازپخش، مجموع کنترلی هر شیء به‌تنهایی. (gx_net_trace.txt)</string>
+    <string name="netdiag_title">عیب‌یابی شبکه</string>
+    <string name="netdiag_row_note">بررسی اینکه آیا این دستگاه به سرورهای GeneralsOnline می‌رسد، و تهیهٔ گزارشی برای پیوست به گزارش خطا.</string>
+    <string name="netdiag_intro">به ترتیب بررسی می‌کند: آیا شبکه کار می‌کند، آیا نام سرورهای GeneralsOnline ترجمه می‌شود، آیا سرورها پاسخ می‌دهند، و دربارهٔ ورود چه می‌گویند.\n\nچیزی به جایی فرستاده نمی‌شود. برای شروع «اجرا» را بزنید.</string>
+    <string name="netdiag_running">در حال اجرا…</string>
+    <string name="netdiag_running_step">در حال اجرا… (%1$s)</string>
+    <string name="netdiag_button_run">اجرای عیب‌یابی</string>
+    <string name="netdiag_button_share">هم‌رسانی گزارش</string>
+    <string name="netdiag_button_copy">رونوشت</string>
+    <string name="netdiag_toast_copied">گزارش در کلیپ‌بورد رونوشت شد.</string>
+    <string name="netdiag_toast_share_failed">هم‌رسانی گزارش ممکن نشد: %1$s</string>
+    <string name="netdiag_share_subject">گزارش شبکهٔ GeneralsZH</string>
+    <string name="online_status_banned">این حساب در GeneralsOnline مسدود شده است. می‌توانید در دیسکورد آن‌ها اعتراض کنید.</string>
+    <string name="online_status_banned_reason">این حساب در GeneralsOnline مسدود شده است: %1$s</string>
+    <string name="online_status_requesting_code">در حال درخواست کد ورود از سرور…</string>
+    <string name="online_status_no_login_code">سرور کد ورود صادر نکرد. اتصال را بررسی کنید و دوباره تلاش کنید، یا عیب‌یابی شبکه را در ابزارها اجرا کنید.</string>
+    <string name="online_card_datapacks">داده‌های بازی آنلاین</string>
+    <string name="online_datapacks_help">بازی آنلاین به دو چیز نیاز دارد که در خود بازی نیست: وصله داده‌های انجمن، که پذیرفته‌شدن این دستگاه در بازی رایانه به آن بستگی دارد، و نقشه‌های انجمن که آن بازی‌ها روی آن‌ها انجام می‌شود. هر دو اینجا مستقیم از GeneralsOnline دریافت می‌شوند — بدون نیاز به رایانه.</string>
+    <string name="online_button_datapacks_update">به‌روزرسانی</string>
+    <string name="online_datapacks_checking">در حال بررسی به‌روزرسانی…</string>
+    <string name="online_datapacks_downloading">در حال دانلود… %1$d%%</string>
+    <string name="online_datapacks_installing">در حال نصب…</string>
+    <string name="online_datapacks_done">به %1$s به‌روزرسانی شد. %2$d فایل نصب شد.</string>
+    <string name="online_datapacks_failed">به‌روزرسانی ناموفق بود: %1$s</string>
+    <string name="online_datapacks_installed">نصب‌شده: نسخه %1$s</string>
+    <string name="online_datapacks_not_installed">هنوز نصب نشده است.</string>
+    <string name="online_button_datapacks_delete">حذف</string>
+    <string name="online_switch_datapacks">استفاده از وصله داده‌های انجمن</string>
+    <string name="online_switch_datapacks_desc">خاموش‌کردن فایل‌های دانلودشده را نگه می‌دارد، اما بازی دوباره داده‌های اصلی را می‌خواند و بازی‌های رایانه این دستگاه را نمی‌پذیرند. از اجرای بعدی بازی اعمال می‌شود.</string>
+    <string name="online_datapacks_chip_sign_in_first">ابتدا وارد شوید</string>
+    <string name="online_datapacks_chip_required">برای بازی آنلاین لازم است — «به‌روزرسانی» را بزنید</string>
+    <string name="online_datapacks_chip_off">دانلود شده، اما خاموش است</string>
+    <string name="online_datapacks_chip_ready">آماده بازی آنلاین</string>
+    <string name="online_datapacks_prompt">تا وقتی وصله داده‌های انجمن نصب نشده باشد، بازی‌هایی که از رایانه میزبانی می‌شوند این دستگاه را نمی‌پذیرند و روی نقشه‌های انجمن انجام می‌شوند. هر دو الان دانلود شوند؟ حدود ۳۰ مگابایت.</string>
+    <string name="online_datapacks_prompt_later">بعداً</string>
+    <string name="online_datapacks_delete_confirm">فقط فایل‌هایی که این دانلود نصب کرده حذف می‌شوند. نقشه‌ها و ذخیره‌های خودتان دست‌نخورده می‌مانند.</string>
+    <string name="online_datapacks_deleted">%1$d فایل حذف شد.</string>
+    <string name="online_datapacks_delete_no_record">چیزی برای حذف نیست: سابقه‌ای از نصب توسط این لانچر وجود ندارد.</string>
+    <string name="online_datapacks_switch_failed">تغییر تنظیم ممکن نشد. بررسی کنید که پوشه داده‌ها قابل نوشتن باشد.</string>
+    <string name="online_card_crossplay">بازی میان‌سکویی</string>
+    <string name="online_crossplay_help">بازی‌هایی که کلاینت ویندوز میزبانی می‌کند معمولاً این دستگاه را رد می‌کنند: این دو برنامهٔ متفاوت‌اند و مجموع کنترلی EXE آن‌ها هرگز یکی نمی‌شود.</string>
+    <string name="online_crossplay_patch_found">وصله داده‌های انجمن نصب شد</string>
+    <string name="online_crossplay_patch_missing">وصله داده‌های انجمن نیست — «به‌روزرسانی» را بزنید</string>
+    <string name="online_switch_crossplay">بازی با بازیکنان رایانه</string>
+    <string name="online_switch_crossplay_desc">مجموع کنترلی EXE کلاینت ویندوز را گزارش می‌کند تا بازی‌هایش شما را بپذیرند. این مجموع ضدتقلب نیست: جلوی هم‌بازی شدن دستگاه‌هایی را می‌گیرد که بازی را متفاوت محاسبه می‌کنند، پس می‌تواند بازی را برای همهٔ افراد لابی خراب کند. برای رایانهٔ خودتان و فقط پس از کپی‌کردن داده‌های INI آن به این پوشهٔ بازی روشن کنید.</string>
+    <string name="replaycheck_title">بررسی بازپخش</string>
+    <string name="replaycheck_row_note">یک بازپخش رایانه را روی این نسخه بدون تماشا اجرا کنید یا به یک فریم بروید و ببینید مجموع‌های بررسی از کجا از هم جدا می‌شوند.</string>
+    <string name="replaycheck_refresh">تازه‌سازی</string>
+    <string name="replaycheck_last_result">آخرین نتیجه</string>
+    <string name="replaycheck_no_result">هنوز هیچ بررسی‌ای اجرا نشده است.</string>
+    <string name="replaycheck_result_match">%1$s: در همهٔ %2$s از %3$s نقطهٔ بررسی با ضبط یکسان است (%4$s فریم، %5$s ثانیه).</string>
+    <string name="replaycheck_result_mismatch">%1$s: اولین ناهمخوانی در فریم %2$s، آخرین همخوانی در %3$s. %4$s از %5$s نقطهٔ بررسی یکسان بود (%6$s فریم، %7$s ثانیه). گزارش‌ها را بفرستید.</string>
+    <string name="replaycheck_mode">حالت</string>
+    <string name="replaycheck_mode_run">اجرای کامل</string>
+    <string name="replaycheck_mode_watch">تماشا از فریم</string>
+    <string name="replaycheck_mode_help">اجرای کامل: بازپخش با بیشترین سرعتی که گوشی اجازه می‌دهد شبیه‌سازی می‌شود، کمی پس از اولین ناهمخوانی یا در پایان متوقف می‌شود و با نتیجه به اینجا برمی‌گردد. تماشا از فریم: جلو زدن سریع تا آن فریم و سپس پخش عادی.</string>
+    <string name="replaycheck_frame_label">فریم</string>
+    <string name="replaycheck_pick">بازپخش‌ها (برای شروع لمس کنید)</string>
+    <string name="replaycheck_none">هیچ فایل ‎.rep در %1$s نیست</string>
+    <string name="replaycheck_no_game_folder">ابتدا پوشهٔ بازی را در لانچر انتخاب کنید.</string>
+    <string name="replaycheck_need_frame">فریمی را که باید تا آن جلو رفت وارد کنید.</string>
+    <string name="replaycheck_trace_enabled">ردیابی شبکه برای بررسی روشن شد.</string>
+    <string name="replaycheck_trace_failed">روشن کردن ردیابی شبکه ممکن نشد؛ گزارش جزئیات مجموع‌های بررسی را نخواهد داشت.</string>
+    <string name="replaycheck_crc_every_frame">مجموع بررسی هر فریم</string>
+    <string name="replaycheck_crc_every_frame_help">مجموع بررسی منطق هر فریم را هم در گزارش می‌نویسد. برای ساختن نسخه‌ای از بازپخش که کلاینت رایانه فریم‌به‌فریم بررسی می‌کند. کندتر.</string>
 </resources>

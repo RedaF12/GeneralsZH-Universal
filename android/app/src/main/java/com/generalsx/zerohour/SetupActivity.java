@@ -78,6 +78,34 @@ public class SetupActivity extends Activity {
 
     static final String PREFS_NAME = "generalszh_setup";
     static final String PREF_GAME_PATH = "game_path";
+
+    // GeneralsX @feature Android port 15/09/2026 Simulation tick rate.
+    //
+    // This is not an ordinary setting: the tick rate is fixed when the engine is
+    // compiled, because it decides the value of an enum the whole engine reads
+    // (WWSyncPerSecond) and, through it, which fields GameLogic even has. So the APK
+    // ships two copies of the engine and this preference chooses which one to load --
+    // see GeneralsZHActivity.getLibraries().
+    //
+    // 30 Hz is what the port has always run and what Android-to-Android play is proven
+    // on. 60 Hz is what the GeneralsOnline Windows client runs, so it is the only mode
+    // that can stay in lockstep with a PC -- at the cost of twice the logic work per
+    // second on the device.
+    static final String PREF_SIM_HZ = "sim_hz";
+    static final int SIM_HZ_RETAIL = 30;
+    static final int SIM_HZ_CROSSPLAY = 60;
+
+    static int getSimHz(android.content.Context ctx) {
+        int hz = ctx.getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+            .getInt(PREF_SIM_HZ, SIM_HZ_RETAIL);
+        return hz == SIM_HZ_CROSSPLAY ? SIM_HZ_CROSSPLAY : SIM_HZ_RETAIL;
+    }
+
+    static void setSimHz(android.content.Context ctx, int hz) {
+        ctx.getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit()
+            .putInt(PREF_SIM_HZ, hz == SIM_HZ_CROSSPLAY ? SIM_HZ_CROSSPLAY : SIM_HZ_RETAIL)
+            .apply();
+    }
     // GeneralsX @feature Android port 06/09/2026 Optional folder holding the
     // BASE Generals archives, for copies that keep them somewhere the engine
     // will not find on its own.
@@ -332,6 +360,7 @@ public class SetupActivity extends Activity {
         LinearLayout page = UiKit.scrollingPage(contentHost);
         switch (tab) {
             case TAB_GRAPHICS:
+                buildSimRateSection(page);
                 buildRenderBackendSection(page);
                 // Custom Vulkan driver / dxvk.conf only matter when Vulkan is
                 // the selected backend -- the GLES/GLES+ANGLE paths never
@@ -446,6 +475,21 @@ public class SetupActivity extends Activity {
             getString(R.string.setup_button_view_logs),
             getString(R.string.setup_status_logs_note),
             this::onViewLogs);
+        UiKit.divider(card);
+        // GeneralsX @feature Android port 13/09/2026 Sits with the logs
+        // rather than with the GeneralsOnline account screen on purpose: by
+        // the time this is worth opening, the account screen is the thing
+        // that is not working.
+        UiKit.listRow(card, R.drawable.ic_gzh_wrench,
+            getString(R.string.netdiag_title),
+            getString(R.string.netdiag_row_note),
+            this::onNetworkDiagnostics);
+        UiKit.divider(card);
+        // GeneralsX @feature Android port 23/09/2026 Replay check (ReplayCheckActivity).
+        UiKit.listRow(card, R.drawable.ic_gzh_play,
+            getString(R.string.replaycheck_title),
+            getString(R.string.replaycheck_row_note),
+            () -> startActivity(new Intent(this, ReplayCheckActivity.class)));
     }
 
     // GeneralsX @feature Android port 13/07/2026 GitHub issue #4: in-app
@@ -938,6 +982,38 @@ public class SetupActivity extends Activity {
     // setup_render_backend_dialog_title) are deliberately left in the string
     // resources: they are still translated in every locale and the dialog is
     // one commit away if this ever needs to go back.
+    private void buildSimRateSection(LinearLayout root) {
+        LinearLayout content = UiKit.card(root);
+        TextView status = UiKit.sectionHeader(content, R.drawable.ic_gzh_chip,
+            getString(R.string.setup_card_sim_rate), true);
+
+        final int current = getSimHz(this);
+        status.setText(getString(current == SIM_HZ_CROSSPLAY
+            ? R.string.setup_sim_rate_60_short
+            : R.string.setup_sim_rate_30_short));
+
+        CharSequence[] labels = new CharSequence[] {
+            getString(R.string.setup_sim_rate_30_short),
+            getString(R.string.setup_sim_rate_60_short)
+        };
+        UiKit.segmented(content, labels, current == SIM_HZ_CROSSPLAY ? 1 : 0, index -> {
+            int picked = index == 1 ? SIM_HZ_CROSSPLAY : SIM_HZ_RETAIL;
+            if (picked == getSimHz(this)) {
+                return;
+            }
+            setSimHz(this, picked);
+            status.setText(getString(picked == SIM_HZ_CROSSPLAY
+                ? R.string.setup_sim_rate_60_short
+                : R.string.setup_sim_rate_30_short));
+            Toast.makeText(this, R.string.setup_toast_sim_rate_saved, Toast.LENGTH_LONG).show();
+        });
+
+        UiKit.supporting(content, getString(current == SIM_HZ_CROSSPLAY
+            ? R.string.setup_sim_rate_60_desc
+            : R.string.setup_sim_rate_30_desc));
+        UiKit.helpText(content, getString(R.string.setup_sim_rate_help));
+    }
+
     private void buildRenderBackendSection(LinearLayout root) {
         LinearLayout content = UiKit.card(root);
         renderBackendStatusView = UiKit.sectionHeader(content, R.drawable.ic_gzh_display,
@@ -1515,18 +1591,21 @@ public class SetupActivity extends Activity {
     // parentheses so a tester can match it up with exact instructions from
     // an issue reporter/maintainer.
     private static final String[] DIAGNOSTIC_MARKERS = {
-        "gx_trace.txt", "gx_perf.txt", "gx_audio_trace.txt", "gx_touch_debug.txt", "dxvk_hud.txt",
+        "gx_trace.txt", "gx_perf.txt", "gx_audio_trace.txt", "gx_net_trace.txt",
+        "gx_touch_debug.txt", "dxvk_hud.txt",
         "dxvk_validation.txt", "dxvk_verbose_log.txt"
     };
     private static final int[] DIAGNOSTIC_TITLES = {
         R.string.setup_switch_gx_trace, R.string.setup_switch_gx_perf,
-        R.string.setup_switch_gx_audio_trace, R.string.setup_switch_touch_debug,
+        R.string.setup_switch_gx_audio_trace, R.string.setup_switch_gx_net_trace,
+        R.string.setup_switch_touch_debug,
         R.string.setup_switch_dxvk_hud, R.string.setup_switch_dxvk_validation,
         R.string.setup_switch_dxvk_verbose_log
     };
     private static final int[] DIAGNOSTIC_DESCRIPTIONS = {
         R.string.setup_switch_gx_trace_desc, R.string.setup_switch_gx_perf_desc,
-        R.string.setup_switch_gx_audio_trace_desc, R.string.setup_switch_touch_debug_desc,
+        R.string.setup_switch_gx_audio_trace_desc, R.string.setup_switch_gx_net_trace_desc,
+        R.string.setup_switch_touch_debug_desc,
         R.string.setup_switch_dxvk_hud_desc, R.string.setup_switch_dxvk_validation_desc,
         R.string.setup_switch_dxvk_verbose_log_desc
     };
@@ -2790,6 +2869,10 @@ public class SetupActivity extends Activity {
 
     private void onViewLogs() {
         startActivity(new Intent(this, LogViewerActivity.class));
+    }
+
+    private void onNetworkDiagnostics() {
+        startActivity(new Intent(this, NetworkDiagnosticsActivity.class));
     }
 
     // GeneralsX @bugfix Android port 31/07/2026 Setup is portrait-first now

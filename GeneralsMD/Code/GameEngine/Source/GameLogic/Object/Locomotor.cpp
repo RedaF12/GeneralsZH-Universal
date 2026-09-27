@@ -44,6 +44,10 @@
 #include "GameLogic/AI.h"
 #include "GameLogic/AIPathfind.h"
 #include "GameLogic/Module/PhysicsUpdate.h"
+
+#if !(defined(_MSC_VER) && defined(_M_IX86))
+void gxPhysNote(Char kind, UnsignedInt id, const Real *values, Int count);
+#endif
 #include "GameLogic/Module/BodyModule.h"
 #include "GameLogic/Module/AIUpdate.h"
 
@@ -2189,6 +2193,15 @@ PhysicsTurningType Locomotor::rotateObjAroundLocoPivot(Object* obj, const Coord3
 		Real desiredAngle = atan2(goalPos.y - obj->getPosition()->y, goalPos.x - obj->getPosition()->x);
 		Real amount = stdAngleDiff(desiredAngle, angle);
 		if (relAngle) *relAngle = amount;
+#if !(defined(_MSC_VER) && defined(_M_IX86))
+		{
+			// GeneralsX @feature Android port 23/09/2026 Heading inputs for the replay-mismatch trace.
+			const Real gxValues[8] = {
+				goalPos.x, goalPos.y, obj->getPosition()->x, obj->getPosition()->y,
+				angle, desiredAngle, amount, maxTurnRate };
+			gxPhysNote('T', (UnsignedInt)obj->getID(), gxValues, 8);
+		}
+#endif
 		if (amount>maxTurnRate) {
 			amount = maxTurnRate;
 			turn = TURN_POSITIVE;
@@ -2286,6 +2299,17 @@ Bool Locomotor::handleBehaviorZ(Object* obj, PhysicsBehavior *physics, const Coo
 					preferredHeight = pos.z + delta;
 
 					Real liftToUse = calcLiftToUseAtPt(obj, physics, pos.z, surfaceHt, preferredHeight);
+#if !(defined(_MSC_VER) && defined(_M_IX86))
+					{
+						// GeneralsX @feature Android port 23/09/2026 Lift inputs for the replay-mismatch trace.
+						const Real gxValues[12] = {
+							pos.z, surfaceHt, preferredHeight, physics->getVelocity()->z, liftToUse,
+							physics->getMass(), getMaxLift(obj->getBodyModule()->getDamageState()),
+							TheGlobalData->m_gravity, m_template->m_speedLimitZ, getPreferredHeightDamping(),
+							getFlag(ULTRA_ACCURATE) ? 1.0f : 0.0f, (Real)m_template->m_behaviorZ };
+						gxPhysNote('L', (UnsignedInt)obj->getID(), gxValues, 12);
+					}
+#endif
 
 					//DEBUG_LOG(("HandleBZ %d LiftToUse %f",TheGameLogic->getFrame(),liftToUse));
 					if (liftToUse != 0.0f)
@@ -2319,6 +2343,17 @@ Bool Locomotor::handleBehaviorZ(Object* obj, PhysicsBehavior *physics, const Coo
 					preferredHeight = pos.z + delta;
 
 					Real liftToUse = calcLiftToUseAtPt(obj, physics, pos.z, surfaceHt, preferredHeight);
+#if !(defined(_MSC_VER) && defined(_M_IX86))
+					{
+						// GeneralsX @feature Android port 23/09/2026 Lift inputs for the replay-mismatch trace.
+						const Real gxValues[12] = {
+							pos.z, surfaceHt, preferredHeight, physics->getVelocity()->z, liftToUse,
+							physics->getMass(), getMaxLift(obj->getBodyModule()->getDamageState()),
+							TheGlobalData->m_gravity, m_template->m_speedLimitZ, getPreferredHeightDamping(),
+							getFlag(ULTRA_ACCURATE) ? 1.0f : 0.0f, (Real)m_template->m_behaviorZ };
+						gxPhysNote('L', (UnsignedInt)obj->getID(), gxValues, 12);
+					}
+#endif
 
 					//DEBUG_LOG(("HandleBZ %d LiftToUse %f",TheGameLogic->getFrame(),liftToUse));
 					if (liftToUse != 0.0f)
@@ -2380,14 +2415,28 @@ void Locomotor::moveTowardsPositionOther(Object* obj, PhysicsBehavior *physics, 
 		physics->setTurning(rotating);
 	}
 
+	Real gxSlowDownDist = -1.0f;
 	if (!getFlag(NO_SLOW_DOWN_AS_APPROACHING_DEST))
 	{
 		Real slowDownDist = calcSlowDownDist(actualSpeed, m_template->m_minSpeed, getBraking());
+		gxSlowDownDist = slowDownDist;
 		if (onPathDistToGoal < slowDownDist)
 		{
 			goalSpeed = m_template->m_minSpeed;
 		}
 	}
+
+#if !(defined(_MSC_VER) && defined(_M_IX86))
+	{
+		// GeneralsX @feature Android port 23/09/2026 Movement decision inputs for the
+		// replay-mismatch trace: where it is, where it is going, and the numbers each
+		// threshold compares (distance vs slow-down distance, speeds, heading).
+		const Real gxValues[12] = {
+			pos->x, pos->y, goalPos.x, goalPos.y, onPathDistToGoal, gxSlowDownDist,
+			desiredSpeed, actualSpeed, goalSpeed, obj->getOrientation(), dirToApplyForce.x, dirToApplyForce.y };
+		gxPhysNote('M', (UnsignedInt)obj->getID(), gxValues, 12);
+	}
+#endif
 
 	//
 	// Maintain goal speed

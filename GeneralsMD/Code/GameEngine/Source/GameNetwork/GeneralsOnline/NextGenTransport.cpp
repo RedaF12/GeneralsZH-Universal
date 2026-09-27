@@ -108,7 +108,36 @@ Bool NextGenTransport::doRecv(void)
             if (!msg)
                 continue;
 
-            const uint32_t numBytes = msg->m_cbSize;
+            // GeneralsX @bugfix Android port 13/09/2026 The first byte says which
+            // channel the packet belongs to -- one connection carries the game and
+            // the anticheat -- and this port used to treat it as part of the
+            // header. Everything after it was then read one byte early, which is
+            // why a PC-hosted match logged "BAD MAGIC - expected 0xF00D, got
+            // 0x0D00" for every packet and never started. See PlayerConnection::
+            // SendGamePacket for the matching prefix on the way out.
+            if (msg->m_cbSize < sizeof(ENetworkChannel))
+            {
+                NetworkLog(ELogVerbosity::LOG_RELEASE,
+                    "Game Packet Recv: Dropping packet with no channel byte (%u bytes)",
+                    msg->m_cbSize);
+                msg->Release();
+                continue;
+            }
+
+            const ENetworkChannel channel =
+                static_cast<ENetworkChannel>(*static_cast<const BYTE*>(msg->m_pData));
+
+            if (channel != ENetworkChannel::NETWORK_CHANNEL_GAME)
+            {
+                // Anticheat traffic shares the connection and is not ours to read.
+                msg->Release();
+                continue;
+            }
+
+            const unsigned char* const wire =
+                static_cast<const unsigned char*>(msg->m_pData) + sizeof(ENetworkChannel);
+            const uint32_t numBytes =
+                msg->m_cbSize - static_cast<uint32_t>(sizeof(ENetworkChannel));
 
             NetworkLog(ELogVerbosity::LOG_DEBUG,
                 "[GAME PACKET] Received message of size %u from user %lld",
@@ -143,7 +172,7 @@ Bool NextGenTransport::doRecv(void)
 
             // Copy header safely
             std::memcpy(&incomingMessage.header,
-                msg->m_pData,
+                wire,
                 sizeof(TransportMessageHeader));
 
             // Compute payload length
@@ -164,7 +193,7 @@ Bool NextGenTransport::doRecv(void)
             if (payloadLen > 0)
             {
                 std::memcpy(incomingMessage.data,
-                    static_cast<unsigned char*>(msg->m_pData) + sizeof(TransportMessageHeader),
+                    wire + sizeof(TransportMessageHeader),
                     payloadLen);
             }
 
@@ -188,8 +217,28 @@ Bool NextGenTransport::doRecv(void)
 
             if (!isGenerals)
             {
-                NetworkLog(ELogVerbosity::LOG_RELEASE,
-                    "Game Packet Recv: Is NOT a generals packet");
+                // GeneralsX @diag Android port 13/09/2026 Say which of the two
+                // checks failed, the way upstream does. "Is NOT a generals
+                // packet" covers both a wrong magic number and a failed CRC,
+                // and those point at completely different problems -- a peer
+                // framing packets differently versus bytes arriving corrupted
+                // -- so on its own the line costs a whole test round to resolve.
+                if (incomingMessage.header.magic != GENERALS_MAGIC_NUMBER)
+                {
+                    NetworkLog(ELogVerbosity::LOG_RELEASE,
+                        "Game Packet Recv: BAD MAGIC - expected 0x%04X, got 0x%04X "
+                        "from user %lld (%u bytes on the wire, %u payload)",
+                        GENERALS_MAGIC_NUMBER, incomingMessage.header.magic,
+                        static_cast<long long>(kvPair.second.m_userID), numBytes, payloadLen);
+                }
+                else
+                {
+                    NetworkLog(ELogVerbosity::LOG_RELEASE,
+                        "Game Packet Recv: CRC MISMATCH - header says 0x%08X "
+                        "from user %lld (%u bytes on the wire, %u payload)",
+                        incomingMessage.header.crc,
+                        static_cast<long long>(kvPair.second.m_userID), numBytes, payloadLen);
+                }
                 m_unknownPackets[m_statisticsSlot]++;
                 m_unknownBytes[m_statisticsSlot] += numBytes;
                 continue;

@@ -28,6 +28,8 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
 
+#include "GXTrace.h"
+
 #include "Common/DataChunk.h"
 #include "Common/file.h"
 #include "Common/FileSystem.h"
@@ -125,9 +127,13 @@ enum { K_SCRIPTS_DATA_VERSION_1 = 1 };
 enum { MAX_SPIN_COUNT = 20 };
 #define NONE_STRING "<none>"
 
+#if defined(GENERALS_ONLINE) && defined(GENERALS_ONLINE_HIGH_FPS_SERVER)
 static const Int FRAMES_TO_SHOW_WIN_LOSE_MESSAGE = 120;
-
 static const Int FRAMES_TO_FADE_IN_AT_START = 33;
+#else
+static const Int FRAMES_TO_SHOW_WIN_LOSE_MESSAGE = 120;
+static const Int FRAMES_TO_FADE_IN_AT_START = 33;
+#endif
 
 
 //------------------------------------------------------------------------------ Performance Timers
@@ -5516,6 +5522,11 @@ void ScriptEngine::update()
 */
 #endif
 #endif
+#if defined(GENERALS_ONLINE_HIGH_FPS_SERVER)
+	const bool legacyFrameAdvanced = TheGameLogic->HasLegacyFrameAdvanced();
+#else
+	const bool legacyFrameAdvanced = true;
+#endif
 	if (m_firstUpdate) {
 		createNamedCache();
 		particleEditorUpdate();
@@ -5564,7 +5575,11 @@ void ScriptEngine::update()
 		if (m_counters[i].isCountdownTimer) {
 			// If counter has any time left, decrement.  Counters go to -1 and stop.
 			if (m_counters[i].value >= 0) {
-				m_counters[i].value--;
+				// Countdown timers are expressed in retail frames, so they tick once per legacy
+				// frame, not once per simulation frame.
+				if (legacyFrameAdvanced) {
+					m_counters[i].value--;
+				}
 			}
 		}
 	}
@@ -6197,18 +6212,40 @@ void ScriptEngine::doNamedMapReveal(const AsciiString& revealName)
 		return;
 	}
 
+	// GeneralsX @feature Android port 21/09/2026 Show what a map reveal actually did.
+	//
+	// The lockstep checksum is 92% fog of war -- 78415 of 85538 words on the map
+	// under investigation -- and this map rewrites it wholesale on the first frame:
+	// its 'Map Reveal' script is active, one-shot and CONDITION_TRUE, and fires 36
+	// of these at radius 450 for player0 through player5 on a map that has four
+	// players. Which of them apply, to which player index, decides thousands of
+	// shroud cells, and none of it was visible in a log.
 	Waypoint *way = TheTerrainLogic->getWaypointByName(reveal->m_waypointName);
 	if (!way) {
+		if (GXTrace::isNetEnabled())
+			GX_NET_TRACE("map reveal '%s': waypoint '%s' does not exist -- skipped\n",
+				revealName.str(), reveal->m_waypointName.str());
 		return;
 	}
 
 	Player *player = getPlayerFromAsciiString(reveal->m_playerName);
 	if (!player) {
+		if (GXTrace::isNetEnabled())
+			GX_NET_TRACE("map reveal '%s': player '%s' does not exist -- skipped\n",
+				revealName.str(), reveal->m_playerName.str());
 		return;
 	}
 
 	Coord3D pos;
 	pos = *way->getLocation();
+
+	if (GXTrace::isNetEnabled())
+		GX_NET_TRACE("map reveal '%s' frame %u: waypoint '%s' at %.6f,%.6f radius %.6f"
+			" -> player '%s' index %d mask %08X\n",
+			revealName.str(), (unsigned)(TheGameLogic ? TheGameLogic->getFrame() : 0),
+			reveal->m_waypointName.str(), pos.x, pos.y, reveal->m_radiusToReveal,
+			reveal->m_playerName.str(), (int)player->getPlayerIndex(),
+			(unsigned)player->getPlayerMask());
 
 	ThePartitionManager->doShroudReveal(pos.x, pos.y, reveal->m_radiusToReveal, player->getPlayerMask());
 }
@@ -6743,7 +6780,12 @@ void ScriptEngine::setTimer( ScriptAction *pAction, Bool millisecondTimer, Bool 
 			Real randomValue = pAction->getParameter(2)->getReal();
 			value = GameLogicRandomValue(value, randomValue);
 		}
+#if defined(GENERALS_ONLINE_HIGH_FPS_SERVER)
+		const int LEGACY_FPS_INT = BaseFps;
+		m_counters[counterNdx].value = REAL_TO_INT_CEIL(value * (Real)LEGACY_FPS_INT);
+#else
 		m_counters[counterNdx].value = REAL_TO_INT_CEIL(ConvertDurationFromMsecsToFrames(value*1000));
+#endif
 	} else {
 		Int value = pAction->getParameter(1)->getInt();
 		if (random) {
@@ -6941,8 +6983,50 @@ void ScriptEngine::checkConditionsForTeamNames(Script *pScript)
 //-------------------------------------------------------------------------------------------------
 /** Executes a script. */
 //-------------------------------------------------------------------------------------------------
+// GeneralsX @feature Android port 22/09/2026 Name the script that is running.
+//
+// Objects created during a logic update reach GameLogic::registerObject from
+// three different places -- the map's object list, the multiplayer starting
+// units, and script actions -- and by the time they arrive the caller is gone.
+// Parking the running script's name for the duration of its execution lets a
+// creation or a destruction trace say which script did it, which is the whole
+// difference between "twelve supply piles appeared on frame 0" and a script
+// name to look up in the map. The name is copied, because Script::getName
+// returns by value.
+namespace
+{
+	class GXScriptNameLatch
+	{
+	public:
+		GXScriptNameLatch( const AsciiString &name )
+			: m_name(name), m_previous(GXTrace::currentScriptSlot())
+		{
+			GXTrace::setCurrentScript( m_name.str() );
+		}
+		~GXScriptNameLatch() { GXTrace::setCurrentScript( m_previous ); }
+	private:
+		AsciiString m_name;
+		const char *m_previous;
+	};
+}
+
 void ScriptEngine::executeScript( Script *pScript )
 {
+	GXScriptNameLatch gxScriptName( pScript ? pScript->getName() : AsciiString::TheEmptyString );
+
+	// GeneralsX @feature Android port 22/09/2026 One line per script evaluation on
+	// the opening frames. A creation trace alone cannot tell "one script with twelve
+	// actions" from "one script with six, run twice" -- which is the difference
+	// between a map doing what it says and a side list this client walks twice. Two
+	// frames of this is about eighty lines.
+	if (GXTrace::isNetEnabled() && TheGameLogic->getFrame() <= 2)
+	{
+		GX_NET_TRACE("script eval mode %d frame %u: '%s' active=%d oneshot=%d\n",
+			(int)TheGameLogic->getGameMode(), (unsigned)TheGameLogic->getFrame(),
+			pScript ? pScript->getName().str() : "(null)",
+			pScript ? (int)pScript->isActive() : -1,
+			pScript ? (int)pScript->isOneShot() : -1);
+	}
 
 	pScript->setCurTime(0);
 	// If script is not active, return.
@@ -7878,13 +7962,16 @@ void ScriptEngine::setSequentialTimer(Team *team, Int frameCount)
 void ScriptEngine::evaluateAndProgressAllSequentialScripts()
 {
 	VecSequentialScriptPtrIt it;
-	size_t currIndex = 0;
-	size_t prevIndex = ~0u;
+	// GeneralsX @bugfix Android port 24/09/2026 Spin detection compares the script pointer, as the
+	// GeneralsOnline client does. TheSuperHackers #2129 switched it to the vector index, which counts
+	// a script that replaced the previous one in the same slot as a spin; the PC client does not
+	// have that change, and which sequential scripts run in a frame is part of the lockstep state.
+	SequentialScript *lastScript = nullptr;
 	Bool itAdvanced = false;
 
 	Int spinCount = 0;
 	for (it = m_sequentialScripts.begin(); it != m_sequentialScripts.end(); /* empty */) {
-		if (currIndex == prevIndex) {
+		if ((*it) == lastScript) {
 			++spinCount;
 		} else {
 			spinCount = 0;
@@ -7897,11 +7984,11 @@ void ScriptEngine::evaluateAndProgressAllSequentialScripts()
 					seqScript->m_scriptToExecuteSequentially->getName().str()));
 			}
 			++it;
-			++currIndex;
 			continue;
 		}
 
-		prevIndex = currIndex;
+		lastScript = (*it);
+
 		itAdvanced = false;
 
 		SequentialScript *seqScript = (*it);
@@ -8009,7 +8096,6 @@ void ScriptEngine::evaluateAndProgressAllSequentialScripts()
 					// Check to see if executing our action told us to wait. If so, skip to the next Sequential script
 					if (seqScript->m_dontAdvanceInstruction) {
 						++it;
-						++currIndex;
 						itAdvanced = true;
 						continue;
 					}
@@ -8063,7 +8149,6 @@ void ScriptEngine::evaluateAndProgressAllSequentialScripts()
 
 		if (!itAdvanced) {
 			++it;
-			++currIndex;
 		}
 	}
 	m_currentPlayer = nullptr;

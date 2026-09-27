@@ -77,8 +77,6 @@ set(GAMEENGINEDEVICE_SRC
 #    Include/Win32Device/Common/Win32LocalFileSystem.h
 #    Include/Win32Device/GameClient/Win32DIKeyboard.h
 #    Include/Win32Device/GameClient/Win32Mouse.h
-#    Source/MilesAudioDevice/MilesAudioManager.cpp
-#    Source/VideoDevice/Bink/BinkVideoPlayer.cpp
     Source/W3DDevice/Common/System/W3DFunctionLexicon.cpp
 #    Source/W3DDevice/Common/System/W3DRadar.cpp
     Source/W3DDevice/Common/Thing/W3DModuleFactory.cpp
@@ -176,14 +174,39 @@ if(WIN32)
     list(APPEND GAMEENGINEDEVICE_SRC
 #       Source/Win32Device/Common/Win32BIGFile.cpp
 #       Source/Win32Device/Common/Win32BIGFileSystem.cpp
-        Source/Win32Device/Common/Win32CDManager.cpp
+# GeneralsX @bugfix Android port 16/09/2026 These two never got the same
+# treatment as their neighbours above (Win32BIGFile*, Win32DIMouse.cpp): the
+# authoritative Core/GameEngineDevice/CMakeLists.txt already comments out the
+# identical files under its own Source/Win32Device/{Common,GameClient}/, and
+# Win32CDManager.cpp/.h do not exist anywhere in the tree at all (CD-ROM
+# management was fully removed). This preset is the first WIN32 configure to
+# ever reach this file list far enough to notice.
+#       Source/Win32Device/Common/Win32CDManager.cpp
         Source/Win32Device/Common/Win32GameEngine.cpp
 #       Source/Win32Device/Common/Win32LocalFile.cpp
 #       Source/Win32Device/Common/Win32LocalFileSystem.cpp
         Source/Win32Device/Common/Win32OSDisplay.cpp
-        Source/Win32Device/GameClient/Win32DIKeyboard.cpp
-        Source/Win32Device/GameClient/Win32Mouse.cpp
     )
+    # GeneralsX @bugfix Android port 16/09/2026 Win32Mouse.cpp/Win32DIKeyboard.cpp
+    # (DirectInputKeyboard) are genuinely needed -- see the identical fix and
+    # explanation in GeneralsMD/Code/GameEngineDevice/CMakeLists.txt.
+    list(APPEND GAMEENGINEDEVICE_SRC
+        ${CMAKE_SOURCE_DIR}/Core/GameEngineDevice/Source/Win32Device/GameClient/Win32DIKeyboard.cpp
+        ${CMAKE_SOURCE_DIR}/Core/GameEngineDevice/Source/Win32Device/GameClient/Win32Mouse.cpp
+    )
+
+    # GeneralsX @bugfix Android port 16/09/2026 Miles and Bink are genuinely
+    # needed on _WIN32; neither has a local copy in this project, so both come
+    # from Core/GameEngineDevice/.
+    # GeneralsX @bugfix Android port 20/09/2026 They were in the unconditional
+    # source list -- see the identical fix and explanation in
+    # GeneralsMD/Code/GameEngineDevice/CMakeLists.txt.
+    if(${CMAKE_SIZEOF_VOID_P} EQUAL 4)
+        list(APPEND GAMEENGINEDEVICE_SRC
+            ${CMAKE_SOURCE_DIR}/Core/GameEngineDevice/Source/MilesAudioDevice/MilesAudioManager.cpp
+            ${CMAKE_SOURCE_DIR}/Core/GameEngineDevice/Source/VideoDevice/Bink/BinkVideoPlayer.cpp
+        )
+    endif()
 else()
     # Linux-specific files (SDL3, DXVK)
     list(APPEND GAMEENGINEDEVICE_SRC

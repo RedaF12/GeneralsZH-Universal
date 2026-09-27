@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Generals Zero Hour</string>
+    <string name="app_name">GeneralsZH</string>
     <string name="common_cancel">Cancel</string>
 
     <!-- SetupActivity: title / fallback -->
@@ -49,6 +49,17 @@
 
     <!-- SetupActivity: Render Backend card -->
     <string name="setup_card_render_backend">Render Backend</string>
+    <string name="setup_card_sim_rate">Simulation Rate</string>
+    <string name="setup_sim_rate_30_short">30 Hz</string>
+    <string name="setup_sim_rate_60_short">60 Hz</string>
+    <string name="setup_sim_rate_30_desc">30 Hz matches every earlier build of this port. Android-to-Android matches work on it, but a match against a Windows player will desynchronise.</string>
+    <string name="setup_sim_rate_60_desc">60 Hz matches the Windows GeneralsOnline client, which is what makes cross-play possible. It doubles the simulation work per second, so a slower device may run the game below full speed.</string>
+    <string name="setup_sim_rate_help">The tick rate is fixed when the engine is built, so the app carries both versions and loads the one you pick here. The change takes effect the next time you start the game. Both players in a match must be on the same rate.</string>
+    <string name="setup_toast_sim_rate_saved">Simulation rate saved. It will apply the next time you start the game.</string>
+    <string name="online_crossplay_hz_title">Simulation rate switched to 60 Hz</string>
+    <string name="online_crossplay_hz_message">The Windows client simulates at 60 Hz, and a 30 Hz client cannot stay in step with it, so cross-play has switched this device to 60 Hz. It takes effect the next time you start the game.\n\nThis doubles the simulation work per second. If the game runs slowly, turn cross-play off or set the rate back to 30 Hz under Graphics — but then you can only play against other Android players on 30 Hz.</string>
+    <string name="online_crossplay_hz_30">Simulation rate: 30 Hz — cannot hold sync with a PC</string>
+    <string name="online_crossplay_hz_60">Simulation rate: 60 Hz — matches the PC client</string>
     <string name="setup_render_backend_help">Which graphics API the game uses. Takes effect the next time you launch the game, not live.\n\nOpenGL ES (default): a native renderer written for this port. It is the default because it works on every device tested so far, including ones where Vulkan renders corrupted graphics. Start here; only change it if you have a reason to.\n\nOpenGL ES + ANGLE: the same renderer, but routed through Google\u0027s ANGLE, which translates it to Vulkan, instead of your phone\u0027s own GLES driver. ANGLE is bundled inside this app, so it needs no minimum Android version and no system setting. Often faster once running, though a menu with many controls (Skirmish options) can stutter the first time it opens while ANGLE compiles what it needs; it does not stutter again until you leave and reopen that menu.\n\nVulkan: the original backend, through DXVK\u0027s Direct3D 8 to Vulkan translation. Faster than the others on phones whose driver handles it well, typically recent Snapdragon. But it depends entirely on that driver, and on some GPUs it produces magenta patches, distorted geometry or corrupted menus that no setting here can fix \u2014 PowerVR BXM and Samsung Xclipse have both been reported. If Vulkan looks wrong on your device, that is what the default is for.\n\nThe Custom Vulkan Driver and DXVK Config sections only appear when Vulkan is selected.</string>
     <string name="setup_render_backend_gpu">Your GPU: %1$s</string>
     <string name="setup_render_backend_status">Current: %1$s</string>
@@ -102,6 +113,8 @@
     <string name="setup_switch_gx_perf_desc">Adds one short line per second showing where frame time goes (radar, audio, network, game logic, rendering). Safe to leave on for a whole play session — turn this on for FPS/slowdown reports. (gx_perf.txt)</string>
     <string name="setup_switch_gx_audio_trace">Audio log</string>
     <string name="setup_switch_gx_audio_trace_desc">Records what the sound system is doing: music and speech buffer levels, movie audio, and every source that starts or stops. Turn this on if you are asked for an audio log after reporting missing, stuttering or silent sound. (gx_audio_trace.txt)</string>
+    <string name="setup_switch_gx_net_trace">Online network log</string>
+    <string name="setup_switch_gx_net_trace_desc">Records every request the game makes to the GeneralsOnline servers, with the reply it got. Turn this on if sign-in, the lobby or matchmaking fails from inside the game. The launcher\'s own requests are always recorded; this adds the game\'s. It also turns on the cross-play desync diagnostics: the simulation checksums that are compared each interval, and, in a replay, the checksum of every single object. (gx_net_trace.txt)</string>
     <string name="setup_button_download_langpack">Download language pack</string>
     <string name="setup_langpack_downloading">Downloading the language pack…</string>
     <string name="setup_langpack_done">Language pack installed. The game will use it on the next launch.</string>
@@ -156,6 +169,19 @@
     <string name="folderpicker_hint_invalid">Navigate into your game folder, then tap \"Use This Folder\".</string>
     <string name="folderpicker_toast_cant_read">Can\'t read this folder. If browsing looks empty everywhere, grant \"All files access\" from the Setup screen first.</string>
 
+    <!-- NetworkDiagnosticsActivity -->
+    <string name="netdiag_title">Network diagnostics</string>
+    <string name="netdiag_row_note">Check whether this device can reach the GeneralsOnline servers, and collect a report to send with a bug report.</string>
+    <string name="netdiag_intro">This checks, in order, whether the device has a working network, whether the GeneralsOnline server names resolve, whether the servers answer, and what they say about signing in.\n\nNothing is sent anywhere. Tap Run to start.</string>
+    <string name="netdiag_running">Running…</string>
+    <string name="netdiag_running_step">Running… (%1$s)</string>
+    <string name="netdiag_button_run">Run diagnostics</string>
+    <string name="netdiag_button_share">Share report</string>
+    <string name="netdiag_button_copy">Copy</string>
+    <string name="netdiag_toast_copied">Report copied to clipboard.</string>
+    <string name="netdiag_toast_share_failed">Could not share the report: %1$s</string>
+    <string name="netdiag_share_subject">GeneralsZH network log</string>
+
     <!-- LogViewerActivity -->
     <string name="logviewer_title">Logs</string>
     <string name="logviewer_button_clear">Clear Logs</string>
@@ -188,6 +214,35 @@
     <string name="online_button_sign_out">Sign Out</string>
     <string name="online_card_sign_in">Sign in</string>
     <string name="online_signin_help">Tap Sign In. The first tap may ask to exempt this app from battery optimization -- allow it, then come back and tap Sign In again. A browser then opens to playgenerals.online, already carrying a one-time code for this device. Pick Steam, Discord, or GameReplays there, then just come back to this app; it finishes on its own.</string>
+    <string name="online_card_datapacks">Online game data</string>
+    <string name="online_datapacks_help">Playing online needs two things the retail game does not ship: the community data patch, which decides whether a PC-hosted game will accept this device, and the community maps those games are played on. This fetches both from GeneralsOnline directly — no PC involved.</string>
+    <string name="online_button_datapacks_update">Update</string>
+    <string name="online_datapacks_checking">Checking for updates…</string>
+    <string name="online_datapacks_downloading">Downloading… %1$d%%</string>
+    <string name="online_datapacks_installing">Installing…</string>
+    <string name="online_datapacks_done">Updated to %1$s. %2$d files installed.</string>
+    <string name="online_datapacks_failed">Update failed: %1$s</string>
+    <string name="online_datapacks_installed">Installed: version %1$s</string>
+    <string name="online_datapacks_not_installed">Not installed yet.</string>
+    <string name="online_button_datapacks_delete">Delete</string>
+    <string name="online_switch_datapacks">Use the community data patch</string>
+    <string name="online_switch_datapacks_desc">Off leaves the download in place but makes the game read retail data again, so PC-hosted games will refuse this device. Takes effect the next time the game starts.</string>
+    <string name="online_datapacks_chip_sign_in_first">Sign in first</string>
+    <string name="online_datapacks_chip_required">Required for online play — tap Update</string>
+    <string name="online_datapacks_chip_off">Downloaded, but switched off</string>
+    <string name="online_datapacks_chip_ready">Ready for online play</string>
+    <string name="online_datapacks_prompt">Games hosted from a PC will refuse this device until the community data patch is installed, and they are played on the community maps. Download both now? About 30 MB.</string>
+    <string name="online_datapacks_prompt_later">Later</string>
+    <string name="online_datapacks_delete_confirm">Removes only the files this download installed. Your own maps and saves are left alone.</string>
+    <string name="online_datapacks_deleted">Deleted %1$d files.</string>
+    <string name="online_datapacks_delete_no_record">Nothing to delete: there is no record of an install by this launcher.</string>
+    <string name="online_datapacks_switch_failed">Could not change the setting. Check that the game data folder is writable.</string>
+    <string name="online_card_crossplay">Cross-platform play</string>
+    <string name="online_crossplay_help">Games hosted by the Windows client normally refuse this device, because the two are different programs and their EXE checksums can never match.</string>
+    <string name="online_crossplay_patch_found">Community data patch installed</string>
+    <string name="online_crossplay_patch_missing">Community data patch missing — tap Update</string>
+    <string name="online_switch_crossplay">Play with PC players</string>
+    <string name="online_switch_crossplay_desc">Reports the Windows client\'s EXE checksum so its games will accept you. That checksum is not anti-cheat — it is what keeps two machines that would compute the match differently from playing it together, so this can desync the game for everyone in the lobby. Turn it on for a PC you own, and only after copying that PC\'s INI data into this game folder so the two really do match.</string>
     <string name="online_button_sign_in">Sign In</string>
     <string name="online_status_signing_in">Signing in...</string>
     <string name="online_status_battery_opt">Allow GeneralsZH to run in the background on the next screen, then come back and tap Sign In again -- otherwise Android may kill the sign-in check while you\'re in the browser.</string>
@@ -196,6 +251,8 @@
     <string name="online_status_network_error">Network error -- check your connection and try again.</string>
     <string name="online_toast_signed_in_as">Signed in as %1$s</string>
     <string name="online_status_signin_failed">Sign-in failed or was cancelled -- tap Sign In to try again.</string>
+    <string name="online_status_banned">This account is banned on GeneralsOnline. You can appeal on their Discord.</string>
+    <string name="online_status_banned_reason">This account is banned on GeneralsOnline: %1$s</string>
     <string name="online_status_timed_out">Timed out waiting -- tap Sign In to try again.</string>
     <string name="online_status_unexpected">Unexpected response -- tap Sign In to try again.</string>
     <string name="online_toast_signed_out">Signed out.</string>
@@ -220,4 +277,26 @@
     <string name="setup_render_backend_gles_short">GLES</string>
     <string name="setup_render_backend_gles_angle_short">ANGLE</string>
     <string name="setup_render_backend_vulkan_short">Vulkan</string>
+    <string name="online_status_requesting_code">Requesting a login code from the server…</string>
+    <string name="online_status_no_login_code">The server would not issue a login code. Check your connection and try again, or run Network diagnostics in Tools.</string>
+    <string name="replaycheck_title">Replay check</string>
+    <string name="replaycheck_row_note">Run a PC replay through this build without watching it, or jump to a frame, and see where the checksums part.</string>
+    <string name="replaycheck_refresh">Refresh</string>
+    <string name="replaycheck_last_result">Last result</string>
+    <string name="replaycheck_no_result">No check has been run yet.</string>
+    <string name="replaycheck_result_match">%1$s: matched the recording at all %2$s of %3$s checkpoints (%4$s frames, %5$s s).</string>
+    <string name="replaycheck_result_mismatch">%1$s: first mismatch at frame %2$s, last match at %3$s. %4$s of %5$s checkpoints matched (%6$s frames, %7$s s). Send the logs.</string>
+    <string name="replaycheck_mode">Mode</string>
+    <string name="replaycheck_mode_run">Run through</string>
+    <string name="replaycheck_mode_watch">Watch from frame</string>
+    <string name="replaycheck_mode_help">Run through: the replay is simulated as fast as the phone allows, stops a little after the first mismatch or at the end, and returns here with the result. Watch from frame: fast-forwards to the frame, then plays normally.</string>
+    <string name="replaycheck_frame_label">Frame</string>
+    <string name="replaycheck_pick">Replays (tap to start)</string>
+    <string name="replaycheck_none">No .rep files in %1$s</string>
+    <string name="replaycheck_no_game_folder">Choose the game folder in the launcher first.</string>
+    <string name="replaycheck_need_frame">Enter the frame to fast-forward to.</string>
+    <string name="replaycheck_trace_enabled">Network trace switched on for the check.</string>
+    <string name="replaycheck_trace_failed">Could not switch the network trace on; the log will lack the checksum details.</string>
+    <string name="replaycheck_crc_every_frame">Checksum of every frame</string>
+    <string name="replaycheck_crc_every_frame_help">Also writes the logic checksum of every frame to the log. Used to build a copy of a replay that the PC client checks frame by frame. Slower.</string>
 </resources>

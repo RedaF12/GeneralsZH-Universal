@@ -27,6 +27,11 @@
 // Author: Michael S. Booth, April 2001
 
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
+#if defined(__ANDROID__) || defined(__linux__) || defined(__APPLE__)
+#include <dlfcn.h>
+#include <sys/stat.h>
+#include <ctime>
+#endif
 
 #include "Common/ActionManager.h"
 #include "Common/AudioAffect.h"
@@ -39,6 +44,7 @@
 #include "Common/PlayerList.h"
 #include "Common/GameAudio.h"
 #include "Common/GameEngine.h"
+#include "Common/GXReplayCheck.h"
 #include "Common/INI.h"
 #include "Common/INIException.h"
 #include "Common/MessageStream.h"
@@ -121,6 +127,7 @@
 // WebSocket need pumping once a frame, same as TheNetwork below, or nothing
 // they kick off (auth polling, WS connect, HTTP requests) ever progresses.
 #include "GameNetwork/GeneralsOnline/NGMP_interfaces.h"
+#include "GameNetwork/GeneralsOnline/NextGenMP_defines.h"
 // GeneralsX @bugfix Android port 07/11/2026 - needed for GSMessageBoxOk/GameSpyCloseAllOverlays used by TearDownGeneralsOnline below
 #include "GameNetwork/GameSpyOverlay.h"
 
@@ -418,6 +425,11 @@ Bool GameEngine::isGameHalted()
 /** -----------------------------------------------------------------------------------------------
  * Initialize the game engine by initializing the GameLogic and GameClient.
  */
+// GeneralsX @feature Android port 13/09/2026 An ordinary function in this
+// translation unit, so dladdr has an address it can resolve back to the
+// shared library (a pointer-to-member is not a code address).
+static void gxBuildStampAnchor() {}
+
 void GameEngine::init()
 {
 	try {
@@ -630,6 +642,8 @@ void GameEngine::init()
 			TheNameKeyGenerator->verifyNameKeyID(1);
 #endif
 
+		// GeneralsX @feature Android port 24/09/2026 See NameKeyGenerator::gxReportKeys.
+		TheNameKeyGenerator->gxReportKeys("before sciences", FALSE);
 		initSubsystem(TheScienceStore,"TheScienceStore", MSGNEW("GameEngineSubsystem") ScienceStore(), &xferCRC, "Data\\INI\\Default\\Science", "Data\\INI\\Science");
 		initSubsystem(TheMultiplayerSettings,"TheMultiplayerSettings", MSGNEW("GameEngineSubsystem") MultiplayerSettings(), &xferCRC, "Data\\INI\\Default\\Multiplayer", "Data\\INI\\Multiplayer");
 		initSubsystem(TheTerrainTypes,"TheTerrainTypes", MSGNEW("GameEngineSubsystem") TerrainTypeCollection(), &xferCRC, "Data\\INI\\Default\\Terrain", "Data\\INI\\Terrain");
@@ -728,7 +742,18 @@ void GameEngine::init()
 			TheNameKeyGenerator->verifyNameKeyID(2265);
 #endif
 
+		TheNameKeyGenerator->gxReportKeys("before upgrades", TRUE);
 		initSubsystem(TheUpgradeCenter,"TheUpgradeCenter", MSGNEW("GameEngineSubsystem") UpgradeCenter, &xferCRC, "Data\\INI\\Default\\Upgrade", "Data\\INI\\Upgrade");
+		{
+			// The GeneralsOnline PC client numbers this upgrade 2265 (read from a PC replay).
+			const UpgradeTemplate *gxRods = TheUpgradeCenter->findUpgrade("Upgrade_AmericaAdvancedControlRods");
+			fprintf(stderr, "[GX-NET] namekeys after upgrades: Upgrade_AmericaAdvancedControlRods=%d (PC client: 2265)\n",
+				gxRods ? (int)gxRods->getUpgradeNameKey() : -1);
+			TheNameKeyGenerator->gxReportKeys("after upgrades", FALSE);
+		}
+		// GeneralsX @bugfix Android port 24/09/2026 Only now, with the stores whose keys travel
+		// in lockstep commands numbered as on the PC, and before any window is loaded.
+		TheFunctionLexicon->gxKeyPortOnlyEntries();
 		initSubsystem(TheGameClient,"TheGameClient", createGameClient(), nullptr);
 
 
@@ -804,6 +829,76 @@ void GameEngine::init()
 		xferCRC.close();
 		TheWritableGlobalData->m_iniCRC = xferCRC.getCRC();
 		DEBUG_LOG(("INI CRC is 0x%8.8X", TheGlobalData->m_iniCRC));
+
+		// GeneralsX @feature Android port 13/09/2026 Report both checksums once, in
+		// release too. They decide whether this installation can join a PC-hosted
+		// game, and until now the only way to see them was to try to join one and
+		// read the refusal -- DEBUG_LOG above is compiled out of the builds people
+		// run.
+		//
+		// The INI checksum is the one that can be changed: it is computed over the
+		// INI files in the game folder, so swapping in a different set moves it.
+		// The stock PC GeneralsOnline client reports 2180732466, against
+		// VANILLA_INI_CRC's 4272612339 for untouched EA data -- printing ours next
+		// to both turns "did that data change anything?" into one line of the log.
+		//
+		// The EXE checksum is not fixable this way and is printed only so a report
+		// carries it: the PC client hashes its own Windows binary, this port hashes
+		// a version number and the .scb scripts, and no arrangement of game files
+		// will ever make those agree.
+		fprintf(stderr, "[GX-CRC] ini_crc=%u exe_crc=%u  (vanilla ini=%u, PC GeneralsOnline ini=2180732466, PC exe=3118172181)\n",
+			(unsigned)TheGlobalData->m_iniCRC, (unsigned)TheGlobalData->m_exeCRC,
+			(unsigned)VANILLA_INI_CRC);
+		fflush(stderr);
+
+		// GeneralsX @feature Android port 13/09/2026 State which simulation
+		// switches this binary was built with.
+		//
+		// These decide whether a match against a PC client can agree with it --
+		// RETAIL_COMPATIBLE_CRC alone changes which bytes go into the per-frame
+		// checksum -- and they are compile-time, so a log cannot be read without
+		// knowing them. A test round was already spent on a log that turned out to
+		// come from the previous build, which was only caught because a checksum
+		// that had to change had not. One line makes every log say for itself
+		// which binary produced it.
+		fprintf(stderr, "[GX-BUILD] sim flags: crc=%d xfer_save=%d pathfind_alloc=%d aigroup=%d networking=%d  (0 = as the PC client builds it)\n",
+			(int)RETAIL_COMPATIBLE_CRC, (int)RETAIL_COMPATIBLE_XFER_SAVE,
+			(int)RETAIL_COMPATIBLE_PATHFINDING_ALLOCATION, (int)RETAIL_COMPATIBLE_AIGROUP,
+			(int)RETAIL_COMPATIBLE_NETWORKING);
+		// The tick rate is part of the lockstep contract and is a build-time choice, so a log
+		// has to say which one produced it. Deducing it from a CRC that moved is guesswork.
+		fprintf(stderr, "[GX-BUILD] sim tick: %d Hz, client id %s  (the PC client is 60 Hz)\n",
+			(int)LOGICFRAMES_PER_SECOND, GENERALS_ONLINE_CLIENT_ID);
+		// GeneralsX @bugfix Android port 13/09/2026 Take the build time from the
+		// binary, not from __TIME__.
+		//
+		// ccache is configured to ignore the time macros when hashing, which is
+		// what makes it able to reuse an object at all -- so __TIME__ reports when
+		// this file last actually compiled, not when the build was made. A log
+		// already arrived stamped with an older build's time while carrying code
+		// only the newer build has, which is precisely the confusion the stamp
+		// exists to prevent. The shared library is relinked every build, so its
+		// modification time is the honest answer.
+		{
+			const char* soPath = "<unknown>";
+			char timeText[64] = "<unknown>";
+#if defined(__ANDROID__) || defined(__linux__) || defined(__APPLE__)
+			Dl_info info;
+			if (dladdr((const void*)&gxBuildStampAnchor, &info) != 0 && info.dli_fname != nullptr)
+			{
+				soPath = info.dli_fname;
+				struct stat st;
+				if (stat(soPath, &st) == 0)
+				{
+					struct tm tmBuf;
+					localtime_r(&st.st_mtime, &tmBuf);
+					strftime(timeText, sizeof(timeText), "%Y-%m-%d %H:%M:%S", &tmBuf);
+				}
+			}
+#endif
+			fprintf(stderr, "[GX-BUILD] binary %s built %s\n", soPath, timeText);
+		}
+		fflush(stderr);
 
 		TheSubsystemList->postProcessLoadAll();
 
@@ -1040,6 +1135,9 @@ Bool GameEngine::canUpdateRegularGameLogic(UnsignedInt logicTimeQueryFlags)
 
 	return false;
 }
+#if defined(GENERALS_ONLINE_HIGH_FPS_RENDER)
+extern NGMPGame* TheNGMPGame;
+#endif
 
 /// -----------------------------------------------------------------------------------------------
 DECLARE_PERF_TIMER(GameEngine_update)
@@ -1117,6 +1215,19 @@ void GameEngine::update()
 			// VERIFY CRC needs to be in this code block.  Please to not pull TheGameLogic->update() inside this block.
 			VERIFY_CRC
 
+#if defined(GENERALS_ONLINE_HIGH_FPS_RENDER)
+			// NGMP_NOTE: Lock the shellmap to 30fps until we fix everything
+			if (TheNGMPGame != nullptr && TheGameLogic->isInGame() && !TheShell->isShellActive())
+			{
+				TheFramePacer->setFramesPerSecondLimit(NGMP_OnlineServicesManager::Settings.Graphics_GetFPSLimit());
+				TheWritableGlobalData->m_useFpsLimit = NGMP_OnlineServicesManager::Settings.Graphics_GetFPSLimit();
+			}
+			else
+			{
+				TheFramePacer->setFramesPerSecondLimit(GENERALS_ONLINE_HIGH_FPS_LIMIT);
+			}
+#endif
+
 			if (gxPerfTrace) gxT0 = std::chrono::steady_clock::now();
 			TheRadar->UPDATE();
 			if (gxPerfTrace) gxT1 = std::chrono::steady_clock::now();
@@ -1168,6 +1279,10 @@ void GameEngine::update()
 				stepUs = std::chrono::duration<double, std::micro>(gxT6 - gxT5).count();
 			}
 		}
+
+		// GeneralsX @feature Android port 23/09/2026 Replay check: fast-forward extra
+		// logic frames and quit with a result file when asked to (GXReplayCheck.h).
+		GXReplayCheck::update();
 
 		if (gxPerfTrace)
 		{

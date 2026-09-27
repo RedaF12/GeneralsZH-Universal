@@ -3,7 +3,19 @@
 # GeneralsX @build felipebraz 20/06/2025 - Also build d3dx8 STATIC on macOS (D3DX math/texture stubs required for link)
 # GeneralsX @bugfix felipebraz 02/03/2026 - Build real d3dx8 STATIC on Linux too (D3DXGetFVFVertexSize / D3DXLoadSurfaceFromSurface required for link)
 # d3dx8 is a math/texture helper stub; core game code doesn't require it
-if((WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 8) OR APPLE OR (UNIX AND NOT APPLE))
+# GeneralsX @bugfix Android port 16/09/2026 This covered 64-bit Windows,
+# Apple and Linux one at a time as each was brought up, and 32-bit Windows
+# (MinGW i686) was never added -- it fell into the "Linux only" stub below
+# by accident. Build the real one here instead, like every other platform --
+# it is plain C++ math/texture code, nothing 64-bit-specific. This also
+# covers SAGE_USE_DX8=ON (the real DirectX 8 SDK path, cmake/dx8.cmake): that
+# SDK's own d3dx8core.h/tex.h/math.h declare the D3DX8 API but implement none
+# of it (no DLL/import-lib shipped for it, unlike the core D3D8 interfaces),
+# so building it ourselves is the only way to get it at all without pulling
+# in an external d3dx8*.dll -- and MinGW-w64's own import lib for one only
+# names the SDK's debug redistributable (d3dx8d.dll), which no real install
+# has (see cmake/mingw.cmake, which used to alias d3dx8 to it).
+if(WIN32 OR APPLE OR (UNIX AND NOT APPLE))
 list(APPEND SOURCE_D3DX_COMPAT
     d3dx8_compat.cpp
     d3dx8math.cpp
@@ -27,7 +39,10 @@ find_package(glm CONFIG REQUIRED)
 target_link_libraries(d3dx8 PUBLIC glm::glm)
 
 # GeneralsX @build felipebraz 20/06/2025 GLI causes make_vec4 ambiguity with Apple Clang - only link on Windows
-if(NOT APPLE)
+# GeneralsX @bugfix Android port 16/09/2026 - MinGW-w64/GCC hits the identical
+# ambiguity (see d3dx8_compat.cpp), which now takes the same manual-fallback
+# branch Apple already used, so it does not need gli linked either.
+if(NOT APPLE AND NOT MINGW)
     find_package(gli CONFIG REQUIRED)
     target_link_libraries(d3dx8 PUBLIC gli)
 endif()
@@ -42,9 +57,25 @@ target_include_directories(d3dx8 PUBLIC
 # Link d3dx8 to d3d8lib to get DirectX8 headers (min-dx8-sdk or DXVK)
 target_link_libraries(d3dx8 PUBLIC d3d8lib)
 
+# GeneralsX @bugfix Android port 16/09/2026 Every consumer of D3DX8 symbols
+# (WW3D2's missingtexture.cpp, surfaceclass.cpp, pointgr.cpp, sortingrenderer.cpp,
+# dx8wrapper.cpp, dx8fvf.cpp, ...) links d3d8lib for its headers but never
+# linked d3dx8 itself -- only z_generals's own top-level target_link_libraries
+# pulled d3dx8 into the final link, at whatever position CMake happened to
+# place it relative to the static libraries that actually need its symbols.
+# GNU ld resolves static archives left-to-right and does not revisit an
+# earlier one once a later one turns out to need it, so those needed-later
+# symbols came up undefined the moment nothing besides the external (and now
+# removed) d3dx8d import lib was around to satisfy them regardless of order.
+# Linking d3dx8 back into d3d8lib's own interface -- circular with the line
+# above, which CMake resolves for static libraries via its own automatic
+# link-group wrapping -- puts d3dx8 next to every one of its consumers
+# instead of only reaching them via z_generals's flat link line.
+target_link_libraries(d3d8lib INTERFACE d3dx8)
+
 else()
-# Linux only: Create empty d3dx8 stub library to satisfy d3d8lib linkage
-# macOS and Win64 both build real d3dx8 STATIC above; Linux can use the stub for now
+# Nothing else currently reaches this branch (WIN32/APPLE/UNIX-non-APPLE
+# covers every supported platform), kept as a safety net for any future one.
 add_library(d3dx8 INTERFACE)
 target_link_libraries(d3dx8 INTERFACE d3d8lib)
 endif()

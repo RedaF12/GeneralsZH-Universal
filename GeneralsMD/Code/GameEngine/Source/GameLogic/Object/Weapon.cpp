@@ -58,6 +58,7 @@
 #include "GameLogic/ExperienceTracker.h"
 #include "GameLogic/GameLogic.h"
 #include "GameLogic/AIPathfind.h"
+#include "GameLogic/Module/SpawnBehavior.h"
 #include "GameLogic/Module/BehaviorModule.h"
 #include "GameLogic/Module/BodyModule.h"
 #include "GameLogic/Module/ContainModule.h"
@@ -499,6 +500,23 @@ Int WeaponTemplate::getDelayBetweenShots(const WeaponBonus& bonus) const
 	else
 		delayToUse = GameLogicRandomValue( m_minDelayBetweenShots, m_maxDelayBetweenShots );
 
+// TODO_NGMP: Better solution, less hackyness
+#if defined(GENERALS_ONLINE_HIGH_FPS_SERVER)
+	if (delayToUse != 0 && delayToUse < (2*GENERALS_ONLINE_HIGH_FPS_FRAME_MULTIPLIER))
+	{
+		delayToUse = 2*GENERALS_ONLINE_HIGH_FPS_FRAME_MULTIPLIER;
+	}
+
+	// HACK
+	// TODO_NGMP: Better solution for this, seems like an ini data bug
+	if (getName().compareNoCase("GattlingBuilding") == 0
+		|| getName().compareNoCase("GattlingBuildingGun") == 0
+		|| getName().compareNoCase("GattlingBuildingGunAir") == 0
+		|| getName().compareNoCase("GattlingBuildingGunAirDummy") == 0)
+	{
+		delayToUse /= 1.5;
+	}
+#endif
 	Real bonusROF = bonus.getField(WeaponBonus::RATE_OF_FIRE);
 	//CRCDEBUG_LOG(("WeaponTemplate::getDelayBetweenShots() - min:%d max:%d val:%d, bonusROF=%g/%8.8X",
 		//m_minDelayBetweenShots, m_maxDelayBetweenShots, delayToUse, bonusROF, AS_INT(bonusROF)));
@@ -599,11 +617,27 @@ Real WeaponTemplate::estimateWeaponTemplateDamage(
   // hmm.. must be shooting a firebase or such, if there is noone home to take the bullet, return 0!
   if ( victimObj->isKindOf( KINDOF_STRUCTURE) && damageType == DAMAGE_SNIPER )
   {
+    // GeneralsX @bugfix Android port 20/09/2026 Restored from the GeneralsOnline
+    // PC client. PRESERVE_SNIPING_EMPTY_STINGER_SITES was missing from this
+    // port's GameDefines.h entirely, so only the retail arm existed here and a
+    // Stinger Site -- which holds its soldiers as spawned slaves, not as
+    // occupants -- read as empty and could not be sniped. Targeting decisions
+    // feed the lockstep checksum, so this has to match the client.
+    // Upstream: TheSuperHackers @bugfix Stubbjax 22/06/2026.
+#if RETAIL_COMPATIBLE_CRC || PRESERVE_SNIPING_EMPTY_STINGER_SITES
     if ( victimObj->getContain() )
     {
       if ( victimObj->getContain()->getContainCount() == 0 )
         return 0.0f;
     }
+#else
+		// TheSuperHackers @bugfix Stubbjax 22/06/2026 Only allow targeting Stinger Sites when they contain Soldiers.
+		const Bool hasOccupants = victimObj->getContain() && victimObj->getContain()->getContainCount() > 0;
+		const Bool hasSlaves = victimObj->getSpawnBehaviorInterface() && victimObj->getSpawnBehaviorInterface()->getSlaveCount() > 0;
+
+		if (!hasOccupants && !hasSlaves)
+			return 0.0f;
+#endif
   }
 
 
@@ -1661,6 +1695,19 @@ WeaponTemplate *WeaponStore::newWeaponTemplate(AsciiString name)
 	WeaponTemplate *wt = newInstance(WeaponTemplate);
 	wt->m_name = name;
 	wt->m_nameKey = TheNameKeyGenerator->nameToKey( name );
+
+	// GeneralsX @bugfix Android port 20/09/2026 Present in the GeneralsOnline PC
+	// client and missing here. SupW_AuroraFuelBombWeapon does not set
+	// MissileCallsOnDie in INI, so getDieOnDetonate() was false, detonate()
+	// skipped attemptDamage() and the die modules never fired -- which is a
+	// difference in damage dealt, and therefore in the lockstep checksum.
+	if (strcmp(name.str(), "SupW_AuroraFuelBombWeapon") == 0)
+	{
+		// Note: m_dieOnDetonate is set to true to fix the Alpha Aurora second explosion inconsistency when targeting structures.
+		// When INI is editable, we should add MissileCallsOnDie = yes for SupW_AuroraFuelBombWeapon
+		// and change m_dieOnDetonate back to false.
+		wt->m_dieOnDetonate = TRUE;
+	}
 	m_weaponTemplateVector.push_back(wt);
 	m_weaponTemplateHashMap[wt->m_nameKey] = wt;
 
@@ -1910,6 +1957,20 @@ void Weapon::computeBonus(const Object *source, WeaponBonusConditionFlags extraB
 	const WeaponBonusSet* extra = m_template->getExtraBonus();
 	if (extra)
 		extra->appendBonuses(flags, bonus);
+#if defined(GENERALS_ONLINE_HIGH_FPS_SERVER)
+     // Fix v1 quad cannon damage this way for now
+     const char* weaponName = m_template->getName().str();
+     if (source->getVeterancyLevel() == 1 &&
+     (strcmp(weaponName, "QuadCannonGun") == 0 ||
+     strcmp(weaponName, "QuadCannonGunAir") == 0 ||
+     strcmp(weaponName, "QuadCannonGunUpgradeOne") == 0 ||
+     strcmp(weaponName, "QuadCannonGunUpgradeOneAir") == 0 ||
+     strcmp(weaponName, "QuadCannonGunUpgradeTwo") == 0 ||
+     strcmp(weaponName, "QuadCannonGunUpgradeTwoAir") == 0))
+     {
+     bonus.setField(WeaponBonus::RATE_OF_FIRE, 1.25f);
+     }
+#endif
 }
 
 //-------------------------------------------------------------------------------------------------

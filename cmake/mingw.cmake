@@ -33,7 +33,17 @@ if(MINGW)
         __int64=long\ long
         _int64=long\ long
     )
-    
+
+    # GeneralsX @bugfix Android port 16/09/2026 core_wwcommon already carries
+    # NOMINMAX as an INTERFACE define, but that only reaches targets that
+    # link core_wwcommon -- z_gameengine (Recorder.cpp -> NGMPGame.h ->
+    # <chrono>) does not, and <windows.h>'s min/max macros make <bits/chrono.h>
+    # fail to parse at all the moment both get included in the same
+    # translation unit. Make it universal instead of per-target.
+    add_compile_definitions(
+        NOMINMAX
+    )
+
     # Enable math constants in MinGW's <math.h>
     # MinGW provides M_PI, M_E, etc. in <math.h>, but only when -std=c++XX is NOT used (strict ANSI mode),
     # or when _USE_MATH_DEFINES is defined. Since we compile with -std=c++20, we need this define.
@@ -65,6 +75,8 @@ if(MINGW)
         vfw32       # Video for Windows (AVIFile functions)
         d3d8        # Direct3D 8
         dinput8     # DirectInput 8
+        dxguid      # GUID definitions dinput8 needs (IID_IDirectInput8, GUID_SysKeyboard,
+                    # c_dfDIKeyboard, ...) -- dinput.h only declares them extern
         dsound      # DirectSound
         imm32       # Input Method Manager (IME)
     )
@@ -74,18 +86,24 @@ if(MINGW)
     # are provided by Dependencies/Utility/Utility/comsupp_compat.h as header-only
     # implementations. No library linking required.
     
-    # MinGW-w64 compatibility: Create d3dx8 as an alias to d3dx8d
-    # MinGW-w64 only provides libd3dx8d.a (debug library), not libd3dx8.a
-    # The min-dx8-sdk (dx8.cmake) handles this correctly via d3d8lib interface target,
-    # but for compatibility with direct library references in main executables,
-    # we create an alias so that linking to d3dx8 automatically uses d3dx8d
-    if(NOT TARGET d3dx8)
-        add_library(d3dx8 INTERFACE IMPORTED GLOBAL)
-        set_target_properties(d3dx8 PROPERTIES
-            INTERFACE_LINK_LIBRARIES "d3dx8d"
-        )
-        message(STATUS "Created d3dx8 -> d3dx8d alias for MinGW-w64")
-    endif()
-    
+    # GeneralsX @bugfix Android port 16/09/2026 This used to alias d3dx8 to
+    # MinGW-w64's own libd3dx8d.a -- the only D3DX8 import lib MinGW ships --
+    # but that lib's DLL name is literally "d3dx8d.dll", the DirectX SDK's
+    # DEBUG redistributable, which no real end-user install (retail or
+    # otherwise) ships; a build linked against it fails to even start
+    # ("d3dx8d.dll not found") on a real machine that plainly doesn't have
+    # d3dx8.dll either, since the D3DX8 utility DLL was never a Windows
+    # component -- it is SDK/redistributable-only.
+    #
+    # CompatLib's own d3dx8_compat.cpp/d3dx8math.cpp already implement every
+    # non-inline D3DX8 function this codebase actually calls (verified
+    # against both the real min-dx8-sdk's d3dx8core.h/tex.h/math.h "non-inline"
+    # section and this codebase's own D3DX* call sites) -- everything else
+    # (D3DXMatrixIdentity, D3DXVec4Dot, ...) is header-only inline in the real
+    # SDK's own d3dx8math.inl, needing no implementation at all. Building our
+    # own from-source d3dx8 for MinGW too, the same as every other platform,
+    # removes the external-DLL dependency entirely instead of trading one
+    # missing DLL for a differently-named one.
+
     message(STATUS "MinGW-w64 configuration complete")
 endif()

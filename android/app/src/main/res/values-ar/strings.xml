@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Generals Zero Hour</string>
+    <string name="app_name">GeneralsZH</string>
     <string name="common_cancel">إلغاء</string>
 
     <!-- SetupActivity: title / fallback -->
@@ -49,6 +49,17 @@
 
     <!-- SetupActivity: Render Backend card -->
     <string name="setup_card_render_backend">خلفية الرسومات</string>
+    <string name="setup_card_sim_rate">معدل المحاكاة</string>
+    <string name="setup_sim_rate_30_short">30 Hz</string>
+    <string name="setup_sim_rate_60_short">60 Hz</string>
+    <string name="setup_sim_rate_30_desc">‏30 هرتز هو ما استخدمته كل الإصدارات السابقة من هذا النقل. مباريات أندرويد ضد أندرويد تعمل به، لكن مباراة ضد لاعب على ويندوز ستفقد التزامن.</string>
+    <string name="setup_sim_rate_60_desc">‏60 هرتز هو ما يستخدمه عميل GeneralsOnline على ويندوز، وهو ما يجعل اللعب المشترك ممكنًا. يضاعف ذلك عمل المحاكاة في الثانية، لذا قد لا يبلغ جهاز أبطأ السرعة الكاملة.</string>
+    <string name="setup_sim_rate_help">يُثبَّت المعدل عند بناء المحرك، لذا يحمل التطبيق النسختين معًا ويحمّل ما تختاره هنا. يسري التغيير عند تشغيل اللعبة في المرة القادمة. يجب أن يستخدم اللاعبان في المباراة المعدل نفسه.</string>
+    <string name="setup_toast_sim_rate_saved">تم حفظ معدل المحاكاة. سيسري عند تشغيل اللعبة في المرة القادمة.</string>
+    <string name="online_crossplay_hz_title">تم تبديل معدل المحاكاة إلى 60 هرتز</string>
+    <string name="online_crossplay_hz_message">يحاكي عميل ويندوز بمعدل 60 هرتز، ولا يستطيع عميل بمعدل 30 هرتز مجاراته، لذا بدّل اللعب المشترك هذا الجهاز إلى 60 هرتز. يسري ذلك عند تشغيل اللعبة في المرة القادمة.\n\nهذا يضاعف عمل المحاكاة في الثانية. إن صارت اللعبة بطيئة، أوقف اللعب المشترك أو أعد المعدل إلى 30 هرتز من «الرسوميات» — لكنك عندها لن تلعب إلا مع لاعبي أندرويد الآخرين على 30 هرتز.</string>
+    <string name="online_crossplay_hz_30">معدل المحاكاة: 30 هرتز — لا يمكنه الحفاظ على التزامن مع حاسوب</string>
+    <string name="online_crossplay_hz_60">معدل المحاكاة: 60 هرتز — مطابق لعميل الحاسوب</string>
     <string name="setup_render_backend_help">واجهة الرسوميات التي تستخدمها اللعبة. تسري عند التشغيل التالي للعبة، لا فورًا.\n\nOpenGL ES (الافتراضي): مُصيِّر أصلي كُتب لهذا النقل. هو الافتراضي لأنه يعمل على كل جهاز جُرّب حتى الآن، بما في ذلك الأجهزة التي يرسم فيها Vulkan رسوميات تالفة. ابدأ من هنا ولا تغيّره إلا لسبب.\n\nOpenGL ES + ANGLE: المُصيِّر نفسه، لكن عبر ANGLE من Google الذي يترجمه إلى Vulkan بدلًا من مشغّل GLES الخاص بهاتفك. ANGLE مضمّن داخل هذا التطبيق، فلا يحتاج إصدار أندرويد أدنى ولا أي إعداد في النظام. غالبًا أسرع بعد التشغيل، غير أن قائمة تحتوي عناصر كثيرة (خيارات المناوشة) قد تتلعثم عند فتحها أول مرة بينما يترجم ANGLE ما يحتاجه؛ ولا يتكرر ذلك حتى تخرج وتفتح تلك القائمة من جديد.\n\nVulkan: الواجهة الخلفية الأصلية، عبر ترجمة DXVK من Direct3D 8 إلى Vulkan. أسرع من غيرها على الهواتف التي يتعامل مشغّلها معها جيدًا، وغالبًا Snapdragon الحديثة. لكنها تعتمد كليًا على ذلك المشغّل، وعلى بعض المعالجات الرسومية تنتج بقعًا أرجوانية وهندسة مشوّهة وقوائم تالفة لا يصلحها أي إعداد هنا \u2014 وقد أُبلغ عن PowerVR BXM وSamsung Xclipse. إن بدا Vulkan خاطئًا على جهازك، فالخيار الافتراضي موجود لهذا بالضبط.\n\nقسما «مشغّل Vulkan مخصص» و«إعدادات DXVK» يظهران فقط عند اختيار Vulkan.</string>
     <string name="setup_render_backend_gpu">معالجك الرسومي: %1$s</string>
     <string name="setup_render_backend_status">الحالي: %1$s</string>
@@ -215,4 +226,70 @@
     <string name="setup_render_backend_gles_short">GLES</string>
     <string name="setup_render_backend_gles_angle_short">ANGLE</string>
     <string name="setup_render_backend_vulkan_short">Vulkan</string>
+    <string name="setup_switch_gx_net_trace">سجل شبكة اللعب عبر الإنترنت</string>
+    <string name="setup_switch_gx_net_trace_desc">يسجّل كل طلب ترسله اللعبة إلى خوادم GeneralsOnline والرد الذي يصلها. فعّل هذا إذا كان تسجيل الدخول أو الردهة أو المطابقة يفشل داخل اللعبة نفسها. طلبات المشغّل تُسجَّل دائمًا، وهذا يضيف طلبات اللعبة. كما يُفعّل تشخيص عدم التزامن في اللعب عبر المنصات: مجاميع التحقّق للمحاكاة التي تُقارن في كل فترة، وفي إعادة العرض مجموع التحقّق لكل كائن على حدة. (gx_net_trace.txt)</string>
+    <string name="netdiag_title">تشخيص الشبكة</string>
+    <string name="netdiag_row_note">تحقّق مما إذا كان هذا الجهاز يصل إلى خوادم GeneralsOnline، واجمع تقريرًا لإرفاقه ببلاغ عن خلل.</string>
+    <string name="netdiag_intro">يفحص بالترتيب: هل توجد شبكة تعمل، وهل تُترجَم أسماء خوادم GeneralsOnline، وهل تستجيب الخوادم، وماذا تقول عن تسجيل الدخول.\n\nلا يُرسَل أي شيء إلى أي جهة. اضغط «تشغيل» للبدء.</string>
+    <string name="netdiag_running">جارٍ التشغيل…</string>
+    <string name="netdiag_running_step">جارٍ التشغيل… (%1$s)</string>
+    <string name="netdiag_button_run">تشغيل التشخيص</string>
+    <string name="netdiag_button_share">مشاركة التقرير</string>
+    <string name="netdiag_button_copy">نسخ</string>
+    <string name="netdiag_toast_copied">تم نسخ التقرير إلى الحافظة.</string>
+    <string name="netdiag_toast_share_failed">تعذّرت مشاركة التقرير: %1$s</string>
+    <string name="netdiag_share_subject">سجل شبكة GeneralsZH</string>
+    <string name="online_status_banned">هذا الحساب محظور على GeneralsOnline. يمكنك تقديم اعتراض عبر Discord الخاص بهم.</string>
+    <string name="online_status_banned_reason">هذا الحساب محظور على GeneralsOnline: %1$s</string>
+    <string name="online_status_requesting_code">جارٍ طلب رمز تسجيل الدخول من الخادم…</string>
+    <string name="online_status_no_login_code">لم يُصدر الخادم رمز تسجيل دخول. تحقّق من الاتصال وحاول مجددًا، أو شغّل تشخيص الشبكة من الأدوات.</string>
+    <string name="online_card_datapacks">بيانات اللعب عبر الإنترنت</string>
+    <string name="online_datapacks_help">يحتاج اللعب عبر الإنترنت إلى شيئين لا تتضمنهما اللعبة: حزمة بيانات المجتمع التي يتوقف عليها قبول مباراة الحاسوب لهذا الجهاز، وخرائط المجتمع التي تُلعب عليها تلك المباريات. يجري تنزيلهما هنا مباشرةً من GeneralsOnline، دون الحاجة إلى حاسوب.</string>
+    <string name="online_button_datapacks_update">تحديث</string>
+    <string name="online_datapacks_checking">جارٍ البحث عن تحديثات…</string>
+    <string name="online_datapacks_downloading">جارٍ التنزيل… %1$d%%</string>
+    <string name="online_datapacks_installing">جارٍ التثبيت…</string>
+    <string name="online_datapacks_done">تم التحديث إلى %1$s. تم تثبيت %2$d ملفاً.</string>
+    <string name="online_datapacks_failed">فشل التحديث: %1$s</string>
+    <string name="online_datapacks_installed">مثبّت: الإصدار %1$s</string>
+    <string name="online_datapacks_not_installed">غير مثبّت بعد.</string>
+    <string name="online_button_datapacks_delete">حذف</string>
+    <string name="online_switch_datapacks">استخدام حزمة بيانات المجتمع</string>
+    <string name="online_switch_datapacks_desc">الإيقاف يُبقي الملفات المنزَّلة لكن اللعبة تعود إلى قراءة بيانات النسخة الأصلية، فترفض مباريات الحاسوب هذا الجهاز. يسري عند تشغيل اللعبة في المرة القادمة.</string>
+    <string name="online_datapacks_chip_sign_in_first">سجّل الدخول أولاً</string>
+    <string name="online_datapacks_chip_required">مطلوب للعب عبر الإنترنت — اضغط «تحديث»</string>
+    <string name="online_datapacks_chip_off">منزَّل لكنه متوقف</string>
+    <string name="online_datapacks_chip_ready">جاهز للعب عبر الإنترنت</string>
+    <string name="online_datapacks_prompt">سترفض المباريات المستضافة من حاسوب هذا الجهاز ما دامت حزمة بيانات المجتمع غير مثبّتة، وهي تُلعب على خرائط المجتمع. أتريد تنزيلهما الآن؟ نحو 30 ميغابايت.</string>
+    <string name="online_datapacks_prompt_later">لاحقاً</string>
+    <string name="online_datapacks_delete_confirm">يحذف ملفات هذا التنزيل فقط. خرائطك وملفات حفظك لا تُمَس.</string>
+    <string name="online_datapacks_deleted">تم حذف %1$d ملفاً.</string>
+    <string name="online_datapacks_delete_no_record">لا شيء لحذفه: لا يوجد سجل تثبيت من هذا المشغّل.</string>
+    <string name="online_datapacks_switch_failed">تعذّر تغيير الإعداد. تحقق من إمكانية الكتابة في مجلد البيانات.</string>
+    <string name="online_card_crossplay">اللعب عبر المنصات</string>
+    <string name="online_crossplay_help">المباريات التي يستضيفها عميل ويندوز ترفض هذا الجهاز عادةً: فهما برنامجان مختلفان ولا يمكن لمجموعَي تحقّق EXE أن يتطابقا أبدًا.</string>
+    <string name="online_crossplay_patch_found">حزمة بيانات المجتمع مثبّتة</string>
+    <string name="online_crossplay_patch_missing">حزمة بيانات المجتمع مفقودة — اضغط «تحديث»</string>
+    <string name="online_switch_crossplay">اللعب مع لاعبي الحاسوب</string>
+    <string name="online_switch_crossplay_desc">يُبلغ عن مجموع تحقّق EXE الخاص بعميل ويندوز كي تقبلك مبارياته. هذا المجموع ليس مضادًا للغش: وظيفته منع جهازين يحسبان المباراة بطريقتين مختلفتين من اللعب معًا، لذا قد يُفسد ذلك المباراة على الجميع في الردهة. فعّله لحاسوب تملكه، وبعد نسخ بيانات INI منه إلى مجلد اللعبة هذا فقط.</string>
+    <string name="replaycheck_title">فحص الإعادة</string>
+    <string name="replaycheck_row_note">شغّل إعادة من الحاسوب على هذا الإصدار دون مشاهدتها، أو انتقل إلى إطار معيّن، واعرف أين تفترق مجاميع التحقق.</string>
+    <string name="replaycheck_refresh">تحديث</string>
+    <string name="replaycheck_last_result">آخر نتيجة</string>
+    <string name="replaycheck_no_result">لم يتم تشغيل أي فحص بعد.</string>
+    <string name="replaycheck_result_match">%1$s: مطابقة للتسجيل في جميع نقاط التحقق الـ %2$s من %3$s (%4$s إطار، %5$s ث).</string>
+    <string name="replaycheck_result_mismatch">%1$s: أول عدم تطابق عند الإطار %2$s، وآخر تطابق عند %3$s. تطابقت %4$s من %5$s نقاط تحقق (%6$s إطار، %7$s ث). أرسل السجلات.</string>
+    <string name="replaycheck_mode">الوضع</string>
+    <string name="replaycheck_mode_run">تشغيل كامل</string>
+    <string name="replaycheck_mode_watch">المشاهدة من إطار</string>
+    <string name="replaycheck_mode_help">تشغيل كامل: تُحاكى الإعادة بأسرع ما يسمح به الهاتف، وتتوقف بعد أول عدم تطابق بقليل أو عند النهاية، وتعود إلى هنا مع النتيجة. المشاهدة من إطار: تقديم سريع حتى الإطار ثم تشغيل عادي.</string>
+    <string name="replaycheck_frame_label">الإطار</string>
+    <string name="replaycheck_pick">الإعادات (المس للبدء)</string>
+    <string name="replaycheck_none">لا توجد ملفات ‎.rep في %1$s</string>
+    <string name="replaycheck_no_game_folder">اختر مجلد اللعبة في المشغّل أولاً.</string>
+    <string name="replaycheck_need_frame">أدخل الإطار المراد التقديم إليه.</string>
+    <string name="replaycheck_trace_enabled">تم تشغيل تتبّع الشبكة للفحص.</string>
+    <string name="replaycheck_trace_failed">تعذّر تشغيل تتبّع الشبكة؛ لن يتضمن السجل تفاصيل مجاميع التحقق.</string>
+    <string name="replaycheck_crc_every_frame">مجموع التحقق لكل إطار</string>
+    <string name="replaycheck_crc_every_frame_help">يكتب أيضاً في السجل مجموع تحقق المنطق لكل إطار. يُستخدم لبناء نسخة من الإعادة يفحصها عميل الحاسوب إطاراً بإطار. أبطأ.</string>
 </resources>

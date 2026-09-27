@@ -21,6 +21,15 @@ if(NOT DEFINED CACHE{SAGE_UPDATE_CHECK})
     set(SAGE_UPDATE_CHECK "${SAGE_USE_SDL3}" CACHE BOOL "Enable in-game update check via GitHub Releases API")
 endif()
 
+# The GeneralsOnline PC client is built with GENERALS_ONLINE_HIGH_FPS_SERVER defined
+# unconditionally, so its simulation runs at 60 Hz while ours runs at 30. That is part of
+# the lockstep contract - the service even separates the two populations by client id
+# (gen_online_60hz vs gen_online_30hz) - so cross-play with Windows requires this ON.
+# It is defined at the top level rather than in a header because it changes the layout of
+# GameLogic (m_frameLegacy) and the value of WWSyncPerSecond, which Core and GeneralsMD
+# must agree on in every single translation unit.
+option(SAGE_HIGH_FPS_SIM "Simulate at 60 Hz to match the GeneralsOnline PC client" OFF)
+
 # macOS port option (Phase 5)
 option(SAGE_USE_MOLTENVK "Use MoltenVK for Vulkan on macOS (Phase 5 macOS port)" OFF)
 
@@ -73,6 +82,18 @@ endif()
 if(NOT IS_VS6_BUILD)
     # Because we set CMAKE_CXX_STANDARD_REQUIRED and CMAKE_CXX_EXTENSIONS in the compilers.cmake this should be enforced.
     target_compile_features(core_config INTERFACE cxx_std_20)
+endif()
+
+# GeneralsX @feature Android port 23/09/2026 Report every float-to-integer conversion of a NaN
+# or an out-of-range value, with its file and line. That is where x86 (0x80000000) and ARM
+# (saturation) produce different integers from the same source -- the cause of the debris
+# desync -- and the fp "invalid" flag cannot tell it apart from a harmless NaN comparison.
+# The check is clang's; the handler that logs it lives in GeneralsMD/Code/Main/
+# ReferenceFloatMath.cpp, so this is limited to the engine's own targets (core_config) and
+# never reaches third-party libraries that would not link it. Recoverable: the conversion
+# still happens as before, it is only reported.
+if(ANDROID)
+    target_compile_options(core_config INTERFACE -fsanitize=float-cast-overflow -fsanitize-recover=float-cast-overflow)
 endif()
 
 if(IS_VS6_BUILD AND RTS_BUILD_OPTION_VC6_FULL_DEBUG)

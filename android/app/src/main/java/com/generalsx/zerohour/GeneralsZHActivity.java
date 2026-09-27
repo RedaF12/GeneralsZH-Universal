@@ -51,15 +51,76 @@ public class GeneralsZHActivity extends SDLActivity {
 
     private static final String TAG = "GeneralsZH";
 
+    // GeneralsX @feature Android port 23/09/2026 Launch options from the Replay check
+    // screen (ReplayCheckActivity): play one replay, optionally fast-forwarded to a frame
+    // or through to the end, and quit with a result file. A normal launch carries none
+    // of these extras and gets the usual empty argument list.
+    static final String EXTRA_REPLAY = "gx_replay";
+    static final String EXTRA_FAST_TO = "gx_fast_to";
+    static final String EXTRA_AUTO_QUIT = "gx_auto_quit";
+    static final String EXTRA_CRC_EVERY_FRAME = "gx_crc_every_frame";
+
+    // singleInstance: a relaunch from the Replay check screen can arrive here instead of
+    // creating a new activity; keep the newest launch's extras for getArguments().
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+    }
+
+    @Override
+    protected String[] getArguments() {
+        Intent intent = getIntent();
+        String replay = intent != null ? intent.getStringExtra(EXTRA_REPLAY) : null;
+        if (replay == null || replay.isEmpty()) {
+            return new String[0];
+        }
+        java.util.ArrayList<String> args = new java.util.ArrayList<>();
+        args.add("-replay");
+        args.add(replay);
+        int fastTo = intent.getIntExtra(EXTRA_FAST_TO, 0);
+        if (fastTo != 0) {
+            args.add("-gxFastTo");
+            args.add(Integer.toString(fastTo));
+        }
+        if (intent.getBooleanExtra(EXTRA_AUTO_QUIT, false)) {
+            args.add("-gxAutoQuit");
+        }
+        if (intent.getBooleanExtra(EXTRA_CRC_EVERY_FRAME, false)) {
+            args.add("-gxCrcEveryFrame");
+        }
+        Log.i(TAG, "Replay check launch: " + args);
+        return args.toArray(new String[0]);
+    }
+
     @Override
     protected String[] getLibraries() {
+        // GeneralsX @feature Android port 15/09/2026 The APK carries two builds of the
+        // engine and this is where one of them is chosen.
+        //
+        // The simulation tick rate cannot be a runtime option: WWSyncPerSecond is an
+        // enum constant, so it is baked into every static_assert, array bound and
+        // derived timing constant at compile time, and GameLogic declares
+        // m_frameLegacy/m_frameLegacyLast behind the same macro - a build that
+        // disagreed about it would disagree about the class layout. So the choice is
+        // made by loading a different .so, not by reading a flag at startup.
+        //
+        // libmain.so is the 30 Hz engine, libmain60.so the 60 Hz one that can hold
+        // lockstep with the Windows client. If the 60 Hz library is somehow missing
+        // from the APK, fall back rather than fail to start.
+        String engine = "main";
+        if (SetupActivity.getSimHz(this) == SetupActivity.SIM_HZ_CROSSPLAY
+                && new java.io.File(getApplicationInfo().nativeLibraryDir, "libmain60.so").isFile()) {
+            engine = "main60";
+        }
+        Log.i(TAG, "Loading engine library: lib" + engine + ".so");
         return new String[] {
             "SDL3",
-            // libmain.so — the game itself (z_generals target, android-vulkan
-            // preset). Its DT_NEEDED entries (SDL3_image, openal, c++_shared,
-            // gamespy) resolve from the same APK; the DXVK d3d8/d3d9
-            // libraries are dlopen()ed by the engine at D3D init.
-            "main"
+            // The game itself (z_generals target, android-vulkan preset). Its
+            // DT_NEEDED entries (SDL3_image, openal, c++_shared, gamespy) resolve
+            // from the same APK; the DXVK d3d8/d3d9 libraries are dlopen()ed by the
+            // engine at D3D init.
+            engine
         };
     }
 

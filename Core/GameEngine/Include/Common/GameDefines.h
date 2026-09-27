@@ -47,12 +47,28 @@
 #define PRESERVE_NO_XP_FROM_OCL_KILLS (1)
 #endif
 
+// GeneralsX @bugfix Android port 24/09/2026 Three of the switches below follow the
+// GeneralsOnline client's community-patch arm. The client writes them as a choice on
+// defined(GENERALS_ONLINE) && defined(GENERALS_ONLINE_COMMUNITY_PATCH_CHANGES), and that
+// macro IS visible here: Common/GameCommon.h includes WWLib/WWCommon.h (which includes
+// NextGenMP_defines.h, where it is defined to 1) before this file. A 15/09/2026 note
+// claimed the opposite and flattened all three to (1); Global_War2.rep then diverged on the
+// first poison kill (5771), because the PC credits experience for it. Zero Hour takes the
+// (0) arm like the client; the base game keeps retail behaviour.
 #ifndef PRESERVE_NO_XP_FROM_POISON_KILLS
+#if RTS_GENERALS
 #define PRESERVE_NO_XP_FROM_POISON_KILLS (1)
+#else
+#define PRESERVE_NO_XP_FROM_POISON_KILLS (0)
+#endif
 #endif
 
 #ifndef PRESERVE_OCCUPANT_DETECTION_VIA_DRAG_SELECTION
+#if RTS_GENERALS
 #define PRESERVE_OCCUPANT_DETECTION_VIA_DRAG_SELECTION (1)
+#else
+#define PRESERVE_OCCUPANT_DETECTION_VIA_DRAG_SELECTION (0)
+#endif
 #endif
 
 #ifndef PRESERVE_PERPETUAL_HORDE_BONUS
@@ -60,7 +76,11 @@
 #endif
 
 #ifndef PRESERVE_PREMATURE_BATTLE_BUS_DEATH
+#if RTS_GENERALS
 #define PRESERVE_PREMATURE_BATTLE_BUS_DEATH (1)
+#else
+#define PRESERVE_PREMATURE_BATTLE_BUS_DEATH (0)
+#endif
 #endif
 
 #ifndef PRESERVE_RADAR_WARNING_SUPPRESSION
@@ -79,26 +99,69 @@
 #define PRESERVE_UNRELIABLE_FIRESTORMS (0) // The fix for this unfavorable behavior was approved by the Game Design Committee.
 #endif
 
+#ifndef PRESERVE_SNIPING_EMPTY_STINGER_SITES
+#define PRESERVE_SNIPING_EMPTY_STINGER_SITES (0) // The fix for this unfavorable behavior was approved by the Game Design Committee.
+#endif
+
 #ifndef PRESERVE_RETAIL_SCRIPTED_CAMERA
 #define PRESERVE_RETAIL_SCRIPTED_CAMERA (1) // Retain scripted camera behavior present in retail Generals 1.08 and Zero Hour 1.04
 #endif
 
+// GeneralsX @bugfix Android port 13/09/2026 Match the simulation switches the
+// GeneralsOnline client is built with, so a match against one can agree with it.
+//
+// A PC-hosted match now starts and runs, and then the two simulations disagree
+// at the first CRC exchange: frame 100, this device AD768702, the PC 9EAFC02B.
+// The cause is not the architecture. Upstream guards these defaults with
+// defined(GENERALS_ONLINE) and turns them all off for its own client; this
+// port, whose GameDefines.h came from TheSuperHackers where that macro does not
+// exist, left them on. They are not cosmetic -- RETAIL_COMPATIBLE_CRC alone
+// changes which bytes go into the per-frame checksum (m_objectUpgradesCompleted
+// is hashed as eight bytes with it on, and as the full bit field with it off),
+// so two simulations doing exactly the same thing still report different
+// numbers. The other three change pathfinding allocation, AIGroup behaviour and
+// save/xfer layout, all of which feed the simulation.
+//
+// Set unconditionally rather than by mirroring upstream's GENERALS_ONLINE
+// guard, for the reason the networking switch below gives: that macro is added
+// by GeneralsMD's CMakeLists and never reaches Core's targets, and a switch
+// this deep resolving differently per target would be far worse than either
+// value. This port is only ever a GeneralsOnline client -- retail's servers are
+// gone -- so there is nothing on the other side of these to stay compatible
+// with.
+//
+// The three PRESERVE_* switches above are deliberately NOT changed. Upstream
+// gates those on GENERALS_ONLINE_COMMUNITY_PATCH_CHANGES as well, and that is
+// defined in NextGenMP_defines.h, which GameDefines.h does not include and
+// PreRTS.h does not pull in first -- so in the shipped client they resolve to
+// the retail branch, which is what this file already has.
+//
+// Changing these changes this build's checksums: an older build and this one
+// will now disagree with each other exactly as this port and the PC did.
+
 #ifndef RETAIL_COMPATIBLE_CRC
-#define RETAIL_COMPATIBLE_CRC (1) // Game is expected to be CRC compatible with retail Generals 1.08, Zero Hour 1.04
+#define RETAIL_COMPATIBLE_CRC (0) // GeneralsOnline builds with this off; see the note below
 #endif
 
 #ifndef RETAIL_COMPATIBLE_XFER_SAVE
-#define RETAIL_COMPATIBLE_XFER_SAVE (1) // Game is expected to be Xfer Save compatible with retail Generals 1.08, Zero Hour 1.04
+#define RETAIL_COMPATIBLE_XFER_SAVE (0) // GeneralsOnline builds with this off; see the note below
 #endif
 
 // This is here to easily toggle between the retail compatible with fixed pathfinding fallback and pure fixed pathfinding mode
+//
+// The GeneralsOnline client never defines this symbol at all, so every #if on it in
+// AIPathfind.cpp - 93 of them - takes the false arm there. It was (1) here, which changed the
+// A* search itself: at AIPathfind.cpp:1309 the start cell is opened with m_open = TRUE on this
+// side and FALSE on the client's, because s_useFixedPathfinding is initialised false and only
+// the retail arm consults it. A different start node expands differently, which gives a
+// different path, which puts units in different places - and unit positions are hashed.
 #ifndef RETAIL_COMPATIBLE_PATHFINDING
-#define RETAIL_COMPATIBLE_PATHFINDING (1)
+#define RETAIL_COMPATIBLE_PATHFINDING (0)
 #endif
 
 // This is here to easily toggle between the retail compatible pathfinding memory allocation and the new static allocated data mode
 #ifndef RETAIL_COMPATIBLE_PATHFINDING_ALLOCATION
-#define RETAIL_COMPATIBLE_PATHFINDING_ALLOCATION (1)
+#define RETAIL_COMPATIBLE_PATHFINDING_ALLOCATION (0) // GeneralsOnline builds with this off; see the note below
 #endif
 
 #ifndef RETAIL_COMPATIBLE_CIRCLE_FILL_ALGORITHM
@@ -106,8 +169,31 @@
 #endif
 
 // Disable non retail fixes in the networking, such as putting more data per UDP packet
+//
+// GeneralsX @bugfix Android port 13/09/2026 Default to the non-retail wire
+// format, because that is the only one anything this port can talk to speaks.
+//
+// GeneralsOnline builds with this off (upstream guards the default with
+// !defined(GENERALS_ONLINE)), which makes its UDP payloads up to 1100 bytes
+// against retail's 476, its TransportMessage::data correspondingly wider, and
+// its command-id ordering overflow-safe. This port had it on, so a PC-hosted
+// match and this device disagreed about the size and shape of every game
+// packet -- and nothing catches that: the lobby compares INI and EXE
+// checksums, not the transport, so the match starts, the loading screen sits
+// at 0%, and the peer eventually times out. A device log of exactly that shows
+// 268 packets from the PC rejected as "Is NOT a generals packet".
+//
+// Set here rather than by mirroring upstream's GENERALS_ONLINE guard on
+// purpose: that macro is added by GeneralsMD's CMakeLists and so does not
+// reach Core's own targets, which compile NetworkDefs.h too. Guarding on it
+// would give one binary two different TransportMessage layouts depending on
+// which target a translation unit landed in, which is worse than either value.
+//
+// Retail networking is not a mode this port can use anyway -- retail's
+// GameSpy servers are long gone -- so there is nothing on the other side of
+// this switch to stay compatible with.
 #ifndef RETAIL_COMPATIBLE_NETWORKING
-#define RETAIL_COMPATIBLE_NETWORKING (1)
+#define RETAIL_COMPATIBLE_NETWORKING (0)
 #endif
 
 // This is essentially synonymous for RETAIL_COMPATIBLE_CRC. There is a lot wrong with AIGroup, such as use-after-free, double-free, leaks,
@@ -115,7 +201,7 @@
 // but put them behind this macro.
 
 #ifndef RETAIL_COMPATIBLE_AIGROUP
-#define RETAIL_COMPATIBLE_AIGROUP (1) // AIGroup logic is expected to be CRC compatible with retail Generals 1.08, Zero Hour 1.04
+#define RETAIL_COMPATIBLE_AIGROUP (0) // GeneralsOnline builds with this off; see the note below
 #endif
 
 #ifndef ENABLE_GAMETEXT_SUBSTITUTES

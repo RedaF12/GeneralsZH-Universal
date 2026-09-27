@@ -56,6 +56,7 @@
 #include "Common/MiscAudio.h"
 #include "Common/PerfTimer.h"
 #include "Common/Player.h"
+#include "Common/StatsExporter.h"
 #include "Common/PlayerList.h"
 #include "Common/PlayerTemplate.h"
 #include "Common/ProductionPrerequisite.h"
@@ -795,8 +796,6 @@ void Player::initFromDict(const Dict* d)
 	Bool exists;
 	Bool skirmish = false;
 	Bool forceHuman = false;
-	// GeneralsX @bugfix Copilot 22/03/2026 Initialize multiplayer start index before any skirmish name/script qualification.
-	m_mpStartIndex = d->getInt(TheKey_multiplayerStartIndex, &exists);
 	if (d->getBool(TheKey_playerIsSkirmish, &exists))
 	{
 
@@ -864,6 +863,15 @@ void Player::initFromDict(const Dict* d)
 	{
 		setPlayerType(PLAYER_COMPUTER, skirmish);
 	}
+	// GeneralsX @bugfix Android port 15/09/2026 This assignment used to sit at the
+	// top of the function so that the skirmish block above would qualify names with
+	// a start index that was already read from the dictionary. The client assigns it
+	// here, after that block, which means the qualification above runs against the
+	// index this player still carried from init(). Reading the dictionary earlier is
+	// arguably the more sensible order, but it renames the qualified skirmish teams
+	// and scripts relative to the client, and a lockstep match cannot survive the two
+	// machines disagreeing about what a team is called. Match the client.
+	m_mpStartIndex = d->getInt(TheKey_multiplayerStartIndex, &exists);
 	if (skirmish) {
 		// Copy and qualify scripts, and teams.
 
@@ -1556,6 +1564,15 @@ void Player::onUnitCreated( Object *factory, Object *unit )
 
 	// increment our scorekeeper
 	m_scoreKeeper.addObjectBuilt(unit);
+	// GeneralsX @bugfix Android port 15/09/2026 onStructureCreated has always
+	// charged the score keeper for what it built; the unit path lost the matching
+	// line in the port, so everything a player ever trained was free as far as the
+	// end-of-game statistics were concerned. The client charges both.
+	m_scoreKeeper.addMoneySpent(unit->getTemplate()->calcCostToBuild(this));
+
+	// GeneralsX @feature Android port 23/09/2026 Replay check event record (StatsExporter.h),
+	// where the client records it; a no-op unless a replay check started it.
+	StatsExporterRecordBuild(factory, unit);
 
 	// ai notification callback
 	if( m_ai )
@@ -1645,6 +1662,7 @@ void Player::onStructureConstructionComplete( Object *builder, Object *structure
 	if (isRebuild == FALSE) {
 		m_scoreKeeper.addObjectBuilt(structure);
 		m_scoreKeeper.addMoneySpent(structure->getTemplate()->calcCostToBuild(this));
+		StatsExporterRecordBuild(builder, structure);
 	}
 
 	structure->friend_adjustPowerForPlayer(TRUE);

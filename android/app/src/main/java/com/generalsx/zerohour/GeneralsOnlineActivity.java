@@ -51,7 +51,8 @@ import com.google.android.material.button.MaterialButton;
 
 import org.json.JSONObject;
 
-import java.security.SecureRandom;
+import java.io.File;
+
 
 public class GeneralsOnlineActivity extends Activity {
 
@@ -60,14 +61,14 @@ public class GeneralsOnlineActivity extends Activity {
     // the session token at game launch (they expire server-side within
     // hours; a stale marker file made the game's Online button fail with
     // "HTTP response code said error"/401 despite a "valid" local session).
-    // GeneralsX @bugfix Android port 10/07/2026 the reference client
-    // (OnlineServices_Auth.cpp BeginLogin) always appends &client=<id> to
-    // this URL -- without it the site apparently doesn't reliably associate
-    // the code with a pending login (the site says "return to the game" but
-    // CheckLogin never resolves it, so the launcher sits on "Not signed in"
-    // with a network-error toast until POLL_MAX_ATTEMPTS gives up).
-    private static final String LOGIN_URL_FMT = "https://www.playgenerals.online/login/?gamecode=%s&client=%s";
-    private static final String CLIENT_ID = "custom_third_party_client";
+    // GeneralsX @bugfix Android port 13/09/2026 &client= dropped. A note
+    // here used to claim the reference client always appended it and that
+    // the site needed it; upstream's BeginLogin no longer sends it, and the
+    // site demonstrably ignores it -- the page is byte-identical with and
+    // without, and the parameter appears nowhere in it. What actually
+    // broke that July sign-in was the client id itself; see
+    // GeneralsOnlineSession.CLIENT_ID.
+    private static final String LOGIN_URL_FMT = "https://www.playgenerals.online/login/?gamecode=%s";
 
     private static final String PREFS_NAME = GeneralsOnlineSession.PREFS_NAME;
     private static final String PREF_SESSION_TOKEN = GeneralsOnlineSession.PREF_SESSION_TOKEN;
@@ -81,12 +82,16 @@ public class GeneralsOnlineActivity extends Activity {
     private static final int POLL_INTERVAL_MS = 1000;
     private static final int POLL_MAX_ATTEMPTS = 180; // ~3 minutes
 
-    private static final String CODE_CHARSET =
-        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    private static final int CODE_LENGTH = 32;
-
     private final Handler handler = new Handler(Looper.getMainLooper());
-    private final SecureRandom random = new SecureRandom();
+    private TextView dataPackStatus;
+    private com.google.android.material.button.MaterialButton dataPackButton;
+    private com.google.android.material.button.MaterialButton dataPackDeleteButton;
+    private com.google.android.material.materialswitch.MaterialSwitch dataPackSwitch;
+    private TextView dataPackChip;
+    private boolean dataPackBusy;
+    private boolean dataPackPrompted;
+    private TextView crossPlayPatchChip;
+    private TextView crossPlayHzChip;
 
     private TextView statusText;
     private MaterialButton signInButton;
@@ -94,6 +99,27 @@ public class GeneralsOnlineActivity extends Activity {
 
     private int pollAttempt = 0;
     private boolean busy = false;
+
+    // GeneralsX @bugfix Android port 13/09/2026 Tapping Sign In again while
+    // a sign-in was already running left the first poll loop alive, so two
+    // codes were polled a second apart -- double the request rate, with
+    // whichever loop answered last owning the screen. Each attempt carries
+    // a generation and a superseded result is dropped.
+    //
+    // Static, and that is the point. The first version of this was an
+    // instance field, which did not help at all: the sign-in flow sends the
+    // user to a browser, and coming back can bring a NEW Activity instance
+    // with it. The old instance's loop kept running -- its handler is bound
+    // to the main Looper, not to the Activity -- and checked its OWN
+    // generation field, which of course still matched. A successful sign-in
+    // log shows exactly that: the abandoned instance polled its dead code
+    // for another 26 seconds after the live one had finished.
+    //
+    // One counter for the process means a new attempt in any instance
+    // retires every older loop, while a recreation that does NOT start a
+    // new attempt leaves the in-flight sign-in alone -- which matters,
+    // since that sign-in is the reason we were sent to the browser.
+    private static int signInGeneration = 0;
 
     @Override
     protected void attachBaseContext(android.content.Context newBase) {
@@ -107,6 +133,18 @@ public class GeneralsOnlineActivity extends Activity {
         buildUi();
         refreshStatus();
         maybeSilentReauth();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        // Only when the screen is really being left. A bare recreation --
+        // which is what returning from the sign-in browser can look like --
+        // must not cancel the sign-in that recreation is the result of.
+        if (isFinishing()) {
+            ++signInGeneration;
+            handler.removeCallbacksAndMessages(null);
+        }
     }
 
     // GeneralsX @feature Android port launcher-ui-2026 08/09/2026 Same shell
@@ -141,15 +179,311 @@ public class GeneralsOnlineActivity extends Activity {
         UiKit.supporting(stepsCard, getString(R.string.online_signin_help));
         signInButton = UiKit.button(stepsCard, UiKit.BTN_PRIMARY, R.drawable.ic_gzh_account,
             getString(R.string.online_button_sign_in), this::onSignIn);
+
+        // GeneralsX @feature Android port 13/09/2026 The online data comes before
+        // the cross-play toggle because it gates it: without the community patch
+        // the INI checksum cannot match a PC lobby no matter what the toggle
+        // claims for the EXE, so the thing that fixes that should be the one a
+        // player reaches first.
+        buildDataPackCard(page);
+
+        // GeneralsX @feature Android port 13/09/2026 Cross-play toggle, here beside
+        // Sign In rather than among the gx_* diagnostics it is implemented as.
+        // Whether this device can play against a PC belongs with the account screen
+        // -- that is where someone goes when they want to play online at all -- and
+        // filed under diagnostics it read as one more trace switch for developers.
+        buildCrossPlayCard(page);
     }
 
-    private String generateGameCode() {
-        StringBuilder sb = new StringBuilder(CODE_LENGTH);
-        for (int i = 0; i < CODE_LENGTH; ++i) {
-            sb.append(CODE_CHARSET.charAt(random.nextInt(CODE_CHARSET.length())));
-        }
-        return sb.toString();
+    // GeneralsX @feature Android port 13/09/2026 Maps and the community data
+    // patch, fetched straight from GeneralsOnline's own published package, so
+    // that getting online needs nothing but this device. What the PC does with
+    // an installer, this does with the ZIP the same release is published as --
+    // see DataPackInstaller for why those two directories and nothing else.
+    private void buildDataPackCard(LinearLayout page) {
+        LinearLayout card = UiKit.card(page);
+        UiKit.sectionHeader(card, R.drawable.ic_gzh_download,
+            getString(R.string.online_card_datapacks), false);
+        UiKit.supporting(card, getString(R.string.online_datapacks_help));
+
+        dataPackChip = UiKit.chip(card, R.drawable.ic_gzh_info, "",
+            R.color.gzh_status_warn, R.color.gzh_surface_container_high);
+
+        dataPackStatus = UiKit.body(card, null);
+        dataPackStatus.setTextIsSelectable(true);
+
+        dataPackButton = UiKit.button(card, UiKit.BTN_PRIMARY, R.drawable.ic_gzh_download,
+            getString(R.string.online_button_datapacks_update), this::onUpdateDataPacks);
+        dataPackDeleteButton = UiKit.button(card, UiKit.BTN_DANGER, R.drawable.ic_gzh_trash,
+            getString(R.string.online_button_datapacks_delete), this::onDeleteDataPacks);
+
+        // Off is a legitimate choice, and it should not mean deleting a 30MB
+        // download: the PC client has the same switch. It only reaches the
+        // engine on the next launch, which the description says.
+        dataPackSwitch = UiKit.switchRow(card,
+            getString(R.string.online_switch_datapacks),
+            getString(R.string.online_switch_datapacks_desc));
+        dataPackSwitch.setChecked(DataPackInstaller.isEnabled());
+        dataPackSwitch.setOnCheckedChangeListener((button, checked) -> {
+            if (!DataPackInstaller.setEnabled(this, checked)) {
+                Toast.makeText(this, R.string.online_datapacks_switch_failed,
+                    Toast.LENGTH_LONG).show();
+                button.setChecked(!checked);
+            }
+        });
+
+        refreshDataPackCard();
     }
+
+    /**
+     * One place decides what the card says, because three things feed it:
+     * whether the account is signed in, whether the data is installed, and
+     * whether it is switched on.
+     */
+    private void refreshDataPackCard() {
+        if (dataPackStatus == null) {
+            return;
+        }
+
+        final boolean signedIn = getSignedInDisplayName(this) != null;
+        final String version = DataPackInstaller.installedVersion(this);
+        final boolean installed = version != null && !version.isEmpty();
+
+        dataPackStatus.setText(installed
+            ? getString(R.string.online_datapacks_installed, version)
+            : getString(R.string.online_datapacks_not_installed));
+
+        // Downloading before sign-in would be allowed by the CDN, but it would
+        // also be the wrong order to learn this in: the data exists to make an
+        // account's games joinable, so the account comes first and the card
+        // says so rather than failing quietly later.
+        dataPackButton.setEnabled(signedIn && !dataPackBusy);
+        dataPackDeleteButton.setEnabled(installed && !dataPackBusy);
+        dataPackSwitch.setEnabled(installed);
+        dataPackSwitch.setChecked(DataPackInstaller.isEnabled());
+
+        if (!signedIn) {
+            setChip(dataPackChip, R.drawable.ic_gzh_info,
+                R.string.online_datapacks_chip_sign_in_first, R.color.gzh_status_warn);
+        } else if (!installed) {
+            setChip(dataPackChip, R.drawable.ic_gzh_info,
+                R.string.online_datapacks_chip_required, R.color.gzh_status_warn);
+        } else if (!DataPackInstaller.isEnabled()) {
+            setChip(dataPackChip, R.drawable.ic_gzh_info,
+                R.string.online_datapacks_chip_off, R.color.gzh_status_warn);
+        } else {
+            setChip(dataPackChip, R.drawable.ic_gzh_check,
+                R.string.online_datapacks_chip_ready, R.color.gzh_status_ok);
+        }
+
+        if (crossPlayPatchChip != null) {
+            final boolean havePatch = DataPackInstaller.communityPatchFile().isFile();
+            setChip(crossPlayPatchChip,
+                havePatch ? R.drawable.ic_gzh_check : R.drawable.ic_gzh_info,
+                havePatch ? R.string.online_crossplay_patch_found
+                          : R.string.online_crossplay_patch_missing,
+                havePatch ? R.color.gzh_status_ok : R.color.gzh_status_warn);
+        }
+    }
+
+    // UiKit.chip() builds one; this restyles it afterwards, which the card
+    // needs because its state changes without the screen being rebuilt.
+    private void setChip(TextView chip, int iconRes, int labelRes, int colorRes) {
+        if (chip == null) {
+            return;
+        }
+        int tint = androidx.core.content.ContextCompat.getColor(this, colorRes);
+        chip.setText(labelRes);
+        chip.setTextColor(tint);
+        android.graphics.drawable.Drawable icon =
+            androidx.core.content.ContextCompat.getDrawable(this, iconRes);
+        if (icon != null) {
+            int size = Math.round(15 * getResources().getDisplayMetrics().density);
+            icon.setBounds(0, 0, size, size);
+            icon.setTint(tint);
+            chip.setCompoundDrawablesRelative(icon, null, null, null);
+        }
+    }
+
+    /**
+     * Asks once per sign-in, and only when there is nothing installed. The
+     * card already states it permanently; this is for the case the card is
+     * below the fold on a phone, which is most of them.
+     */
+    private void maybePromptForDataPacks() {
+        if (dataPackPrompted || dataPackBusy) {
+            return;
+        }
+        if (getSignedInDisplayName(this) == null) {
+            return;
+        }
+        if (DataPackInstaller.installedVersion(this) != null) {
+            return;
+        }
+        dataPackPrompted = true;
+        new android.app.AlertDialog.Builder(this)
+            .setTitle(R.string.online_card_datapacks)
+            .setMessage(R.string.online_datapacks_prompt)
+            .setPositiveButton(R.string.online_button_datapacks_update,
+                (dialog, which) -> onUpdateDataPacks())
+            .setNegativeButton(R.string.online_datapacks_prompt_later, null)
+            .show();
+    }
+
+    private void onDeleteDataPacks() {
+        new android.app.AlertDialog.Builder(this)
+            .setTitle(R.string.online_button_datapacks_delete)
+            .setMessage(R.string.online_datapacks_delete_confirm)
+            .setPositiveButton(R.string.online_button_datapacks_delete, (dialog, which) -> {
+                int removed = DataPackInstaller.uninstall(this);
+                if (removed < 0) {
+                    Toast.makeText(this, R.string.online_datapacks_delete_no_record,
+                        Toast.LENGTH_LONG).show();
+                } else {
+                    Toast.makeText(this,
+                        getString(R.string.online_datapacks_deleted, removed),
+                        Toast.LENGTH_LONG).show();
+                }
+                // Asking again is right after a deliberate delete only if the
+                // player signs in afresh, so leave dataPackPrompted set.
+                refreshDataPackCard();
+            })
+            .setNegativeButton(R.string.common_cancel, null)
+            .show();
+    }
+
+    private void onUpdateDataPacks() {
+        if (dataPackBusy) {
+            return;
+        }
+        dataPackBusy = true;
+        dataPackButton.setEnabled(false);
+        dataPackDeleteButton.setEnabled(false);
+
+        new Thread(() -> {
+            DataPackInstaller.Result result = DataPackInstaller.install(this,
+                new DataPackInstaller.Progress() {
+                    @Override public void onChecking() {
+                        handler.post(() ->
+                            dataPackStatus.setText(R.string.online_datapacks_checking));
+                    }
+
+                    @Override public void onDownloading(long bytes, long total) {
+                        final int percent = total > 0 ? (int) (bytes * 100 / total) : 0;
+                        handler.post(() -> dataPackStatus.setText(
+                            getString(R.string.online_datapacks_downloading, percent)));
+                    }
+
+                    @Override public void onInstalling() {
+                        handler.post(() ->
+                            dataPackStatus.setText(R.string.online_datapacks_installing));
+                    }
+                });
+
+            handler.post(() -> {
+                dataPackBusy = false;
+                // refreshDataPackCard() re-reads the installed state and fixes
+                // the cross-play chip too; the result line is written after it
+                // so a finished install still says what it did.
+                refreshDataPackCard();
+                dataPackStatus.setText(result.ok
+                    ? getString(R.string.online_datapacks_done,
+                        result.version, result.filesWritten)
+                    : getString(R.string.online_datapacks_failed, result.error));
+            });
+        }).start();
+    }
+
+    // The engine reads this as a marker file in the game folder (GlobalData::init);
+    // the switch just creates or deletes it. Same convention as the gx_* markers,
+    // which is why it needs the game folder and says so when there is not one.
+    private void buildCrossPlayCard(LinearLayout page) {
+        LinearLayout card = UiKit.card(page);
+        UiKit.sectionHeader(card, R.drawable.ic_gzh_globe,
+            getString(R.string.online_card_crossplay), false);
+        UiKit.supporting(card, getString(R.string.online_crossplay_help));
+
+        // GeneralsX @feature Android port 13/09/2026 The EXE checksum is only half
+        // of what a PC-hosted game checks; the other half is the INI checksum, and
+        // that one this device can genuinely match rather than claim. The PC client
+        // mounts a community data patch it downloads into its user-data folder, so a
+        // retail-only install computes a different number and is turned away no
+        // matter what it reports for the EXE. Nothing here can fetch that file, so
+        // say plainly whether it is present -- before the game-folder check below,
+        // because the patch lives in the user-data folder either way.
+        final boolean havePatch = DataPackInstaller.communityPatchFile().isFile();
+        crossPlayPatchChip = UiKit.chip(card,
+            havePatch ? R.drawable.ic_gzh_check : R.drawable.ic_gzh_info,
+            getString(havePatch
+                ? R.string.online_crossplay_patch_found
+                : R.string.online_crossplay_patch_missing),
+            havePatch ? R.color.gzh_status_ok : R.color.gzh_status_warn,
+            R.color.gzh_surface_container_high);
+
+        final File marker = crossPlayMarkerFile();
+        if (marker == null) {
+            UiKit.chip(card, R.drawable.ic_gzh_info,
+                getString(R.string.setup_diagnostics_no_folder),
+                R.color.gzh_status_warn, R.color.gzh_surface_container_high);
+            return;
+        }
+
+        com.google.android.material.materialswitch.MaterialSwitch sw = UiKit.switchRow(card,
+            getString(R.string.online_switch_crossplay),
+            getString(R.string.online_switch_crossplay_desc));
+        sw.setChecked(marker.isFile());
+        sw.setOnCheckedChangeListener((button, checked) -> {
+            if (checked) {
+                try {
+                    marker.createNewFile();
+                } catch (java.io.IOException e) {
+                    Toast.makeText(this,
+                        getString(R.string.setup_toast_options_save_failed, e.getMessage()),
+                        Toast.LENGTH_LONG).show();
+                    button.setChecked(false);
+                    return;
+                }
+                // GeneralsX @feature Android port 15/09/2026 Cross-play is not just a
+                // checksum claim: the Windows client simulates at 60 Hz, and a 30 Hz
+                // client cannot stay in lockstep with it whatever it reports. So turning
+                // this on switches the engine too - and says so, because it costs twice
+                // the logic work per second and a slow device will feel it.
+                if (SetupActivity.getSimHz(this) != SetupActivity.SIM_HZ_CROSSPLAY) {
+                    SetupActivity.setSimHz(this, SetupActivity.SIM_HZ_CROSSPLAY);
+                    refreshCrossPlayHzChip();
+                    new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                        .setTitle(R.string.online_crossplay_hz_title)
+                        .setMessage(R.string.online_crossplay_hz_message)
+                        .setPositiveButton(android.R.string.ok, null)
+                        .show();
+                }
+            } else {
+                marker.delete();
+            }
+        });
+
+        // The tick rate is the other half of cross-play, so show where it stands here
+        // rather than making someone go and look in the graphics settings.
+        crossPlayHzChip = UiKit.chip(card, R.drawable.ic_gzh_chip, "",
+            R.color.gzh_on_surface, R.color.gzh_surface_container_high);
+        refreshCrossPlayHzChip();
+    }
+
+    private void refreshCrossPlayHzChip() {
+        if (crossPlayHzChip == null) {
+            return;
+        }
+        boolean crossPlayRate = SetupActivity.getSimHz(this) == SetupActivity.SIM_HZ_CROSSPLAY;
+        crossPlayHzChip.setText(getString(crossPlayRate
+            ? R.string.online_crossplay_hz_60
+            : R.string.online_crossplay_hz_30));
+    }
+
+    private File crossPlayMarkerFile() {
+        String gamePath = SetupActivity.getSavedGamePath(this);
+        return gamePath != null ? new File(gamePath, "gx_pc_compat.txt") : null;
+    }
+
 
     // If we already have a refresh_token from a previous sign-in, try to
     // silently re-authenticate instead of making the user go through the
@@ -233,10 +567,36 @@ public class GeneralsOnlineActivity extends Activity {
         }
         busy = true;
         pollAttempt = 0;
+        final int generation = ++signInGeneration;
         signInButton.setEnabled(false);
 
-        String code = generateGameCode();
-        String url = String.format(LOGIN_URL_FMT, code, CLIENT_ID);
+        // GeneralsX @bugfix Android port 13/09/2026 The code now comes from
+        // the server instead of being invented here -- see
+        // GeneralsOnlineSession.fetchLoginCode. That means a network round
+        // trip before the browser can open, so the tap no longer opens it
+        // directly.
+        NetworkTrace.section(this, "sign-in attempt");
+        statusText.setText(R.string.online_status_requesting_code);
+        new Thread(() -> {
+            String code = GeneralsOnlineSession.fetchLoginCode(this);
+            handler.post(() -> onLoginCodeReady(code, generation));
+        }, "GeneralsOnlineLoginCode").start();
+    }
+
+    private void onLoginCodeReady(String code, int generation) {
+        if (generation != signInGeneration) {
+            return;
+        }
+        if (code == null) {
+            busy = false;
+            signInButton.setEnabled(true);
+            statusText.setText(withNetworkErrorDetail(getString(R.string.online_status_no_login_code)));
+            return;
+        }
+
+        String url = String.format(LOGIN_URL_FMT, code);
+        NetworkTrace.write(this, "server issued a login code (" + code.length()
+            + " chars); opening browser");
         try {
             startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
         } catch (Exception e) {
@@ -247,54 +607,94 @@ public class GeneralsOnlineActivity extends Activity {
         }
 
         statusText.setText(R.string.online_status_continue_browser);
-        handler.postDelayed(() -> pollOnce(code), POLL_INTERVAL_MS);
+        handler.postDelayed(() -> pollOnce(code, generation), POLL_INTERVAL_MS);
     }
 
-    private void pollOnce(String code) {
+    private void pollOnce(String code, int generation) {
+        if (generation != signInGeneration) {
+            return;
+        }
         new Thread(() -> {
             GeneralsOnlineSession.AuthResult result = callCheckLogin(code);
-            handler.post(() -> handlePollResult(code, result));
+            handler.post(() -> handlePollResult(code, generation, result));
         }).start();
     }
 
-    private void handlePollResult(String code, GeneralsOnlineSession.AuthResult result) {
+    // GeneralsX @bugfix Android port 13/09/2026 Rewritten around one fact:
+    // until the user finishes on the website, the server's answer to every
+    // poll is indistinguishable from a rejection. An unclaimed code comes
+    // back as HTTP 403 with result:2 (FAILED) -- the same pair a genuinely
+    // refused sign-in produces. The old loop treated both as terminal and
+    // gave up on the first tick, one second after opening the browser and
+    // long before anyone could have typed a password.
+    //
+    // So a FAILED is no longer terminal on its own; it is only terminal
+    // once the whole window has elapsed. Nothing is lost by waiting: a real
+    // refusal just means the user sees "timed out" three minutes later
+    // instead of "sign-in failed" immediately, and the log records every
+    // answer in between. What IS terminal: an explicit ban (423), and a
+    // transport failure with no parseable body at all.
+    private void handlePollResult(String code, int generation,
+                                  GeneralsOnlineSession.AuthResult result) {
+        if (generation != signInGeneration) {
+            // A newer attempt has taken over; this answer is about a code
+            // nobody is waiting on any more.
+            return;
+        }
         if (result == null) {
             busy = false;
             signInButton.setEnabled(true);
             statusText.setText(withNetworkErrorDetail(getString(R.string.online_status_network_error)));
+            NetworkTrace.write(this, "sign-in aborted: no usable response from either endpoint");
             return;
         }
 
-        switch (result.state) {
-            case 1: // SUCCEEDED
-                busy = false;
-                signInButton.setEnabled(true);
-                saveSession(result);
-                refreshStatus();
-                Toast.makeText(this, getString(R.string.online_toast_signed_in_as, result.displayName), Toast.LENGTH_LONG).show();
-                break;
-            case 2: // FAILED
-                busy = false;
-                signInButton.setEnabled(true);
-                statusText.setText(R.string.online_status_signin_failed);
-                break;
-            case 0: // WAITING_USER_ACTION
-            case -1: // CODE_INVALID (not registered yet server-side -- keep polling, it's a timing thing)
-                ++pollAttempt;
-                if (pollAttempt >= POLL_MAX_ATTEMPTS) {
-                    busy = false;
-                    signInButton.setEnabled(true);
-                    statusText.setText(R.string.online_status_timed_out);
-                } else {
-                    handler.postDelayed(() -> pollOnce(code), POLL_INTERVAL_MS);
-                }
-                break;
-            default:
-                busy = false;
-                signInButton.setEnabled(true);
-                statusText.setText(R.string.online_status_unexpected);
-                break;
+        if (result.httpStatus == 423) {
+            busy = false;
+            signInButton.setEnabled(true);
+            String reason = result.banReason == null || result.banReason.isEmpty()
+                ? getString(R.string.online_status_banned)
+                : getString(R.string.online_status_banned_reason, result.banReason);
+            statusText.setText(reason);
+            NetworkTrace.write(this, "sign-in refused: account banned");
+            return;
         }
+
+        if (result.state == 1) { // SUCCEEDED
+            busy = false;
+            signInButton.setEnabled(true);
+            saveSession(result);
+            refreshStatus();
+            NetworkTrace.write(this, "sign-in complete after " + pollAttempt
+                + " polls, user " + result.userId);
+            Toast.makeText(this, getString(R.string.online_toast_signed_in_as, result.displayName),
+                Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        // Everything else -- WAITING_USER_ACTION, CODE_INVALID, and the
+        // FAILED that an unclaimed code produces -- means "not yet".
+        ++pollAttempt;
+        if (pollAttempt >= POLL_MAX_ATTEMPTS) {
+            busy = false;
+            signInButton.setEnabled(true);
+            // After a full window of nothing but refusals, the likeliest
+            // cause is that the sign-in was never completed in the browser,
+            // so say that rather than blaming the network.
+            statusText.setText(withNetworkErrorDetail(getString(R.string.online_status_timed_out)));
+            NetworkTrace.write(this, "sign-in timed out after " + pollAttempt
+                + " polls; last status HTTP " + result.httpStatus
+                + ", result " + result.state);
+            return;
+        }
+
+        if (pollAttempt == 1 || pollAttempt % 15 == 0) {
+            // One line a poll would be 180 lines of the same thing; this is
+            // enough to see the loop is alive and what it is being told.
+            NetworkTrace.write(this, "poll " + pollAttempt + ": HTTP " + result.httpStatus
+                + ", result " + result.state + " (still waiting)");
+        }
+        handler.postDelayed(() -> pollOnce(code, generation), POLL_INTERVAL_MS);
     }
 
     // GeneralsX @bugfix Android port 08/30/2026 A user reported the network-
@@ -313,23 +713,32 @@ public class GeneralsOnlineActivity extends Activity {
     }
 
     // Runs on a background thread.
+    //
+    // GeneralsX @bugfix Android port 13/09/2026 reserved_0/1/2 retired in
+    // favour of machine_guid/mac_addr/vol_serial, matching the current
+    // upstream client (OnlineServices_Auth.cpp). exe_crc/ini_crc are the
+    // engine's own checksums, which the launcher process cannot compute --
+    // it never loads the game -- so they go as 0 and the game sends the
+    // real ones on its own calls.
     private GeneralsOnlineSession.AuthResult callCheckLogin(String code) {
         JSONObject body = new JSONObject();
         try {
             body.put("code", code);
-            body.put("client_id", CLIENT_ID);
-            body.put("reserved_0", "");
-            body.put("reserved_1", "");
-            body.put("reserved_2", "");
+            body.put("client_id", GeneralsOnlineSession.clientId(this));
+            body.put("machine_guid", NetworkDiagnostics.installId(this));
+            body.put("mac_addr", NetworkDiagnostics.syntheticMac(this));
+            body.put("vol_serial", NetworkDiagnostics.syntheticVolumeSerial(this));
+            body.put("exe_crc", 0);
+            body.put("ini_crc", 0);
         } catch (Exception e) {
             return null;
         }
-        return GeneralsOnlineSession.postJson("CheckLogin", body, null);
+        return GeneralsOnlineSession.postJson(this, "CheckLogin", body, null);
     }
 
     // Runs on a background thread.
     private GeneralsOnlineSession.AuthResult callLoginWithToken(String refreshToken) {
-        return GeneralsOnlineSession.loginWithToken(refreshToken);
+        return GeneralsOnlineSession.loginWithToken(this, refreshToken);
     }
 
     private void saveSession(GeneralsOnlineSession.AuthResult result) {
@@ -362,6 +771,9 @@ public class GeneralsOnlineActivity extends Activity {
             statusText.setText(R.string.online_status_not_signed_in);
             signOutButton.setEnabled(false);
         }
+
+        refreshDataPackCard();
+        maybePromptForDataPacks();
     }
 
     // Static helper so other screens (SetupActivity) can show a one-line

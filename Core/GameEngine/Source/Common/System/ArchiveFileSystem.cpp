@@ -48,6 +48,8 @@
 #include "PreRTS.h"
 #include "Common/ArchiveFile.h"
 #include "Common/ArchiveFileSystem.h"
+#include "Common/GlobalData.h"
+#include "Common/LocalFileSystem.h"
 #include "Common/AsciiString.h"
 #include "Common/PerfTimer.h"
 
@@ -92,6 +94,21 @@ ArchiveFileSystem *TheArchiveFileSystem = nullptr;
 //         Private Functions
 //----------------------------------------------------------------------------
 
+#if RTS_ZEROHOUR
+// Presence turns the community data patch off without removing it -- the
+// launcher writes and deletes this, and loadMods() below is the only reader.
+static const char* const kCommunityPatchDisableMarker = "gx_no_community_patch.txt";
+#endif
+
+static AsciiString getBaseFilename(const AsciiString& path)
+{
+	const char* str = path.str();
+	const char* p1 = strrchr(str, '\\');
+	const char* p2 = strrchr(str, '/');
+	const char* sep = (p1 == nullptr) ? p2 : ((p2 == nullptr) ? p1 : ((p1 > p2) ? p1 : p2));
+	return sep ? AsciiString(sep + 1) : path;
+}
+
 
 
 //----------------------------------------------------------------------------
@@ -115,7 +132,7 @@ ArchiveFileSystem::~ArchiveFileSystem()
 	}
 }
 
-void ArchiveFileSystem::loadIntoDirectoryTree(ArchiveFile *archiveFile, Bool overwrite)
+void ArchiveFileSystem::loadIntoDirectoryTree(ArchiveFile *archiveFile, Bool overwrite, Bool sortedByName)
 {
 
 	FilenameList filenameList;
@@ -155,7 +172,17 @@ void ArchiveFileSystem::loadIntoDirectoryTree(ArchiveFile *archiveFile, Bool ove
 		}
 
 		ArchivedFileLocationMap::iterator fileIt;
-		if (overwrite)
+		if (sortedByName)
+		{
+			// Insert by case-insensitive archive filename, matching game folder load
+			// order where the alphabetically first archive wins.
+			const AsciiString baseName = getBaseFilename(archiveFile->getName());
+			std::pair<ArchivedFileLocationMap::iterator, ArchivedFileLocationMap::iterator> range = dirInfo->m_files.equal_range(token);
+			fileIt = range.first;
+			while (fileIt != range.second && getBaseFilename(fileIt->second->getName()).compareNoCase(baseName) <= 0)
+				++fileIt;
+		}
+		else if (overwrite)
 		{
 			// When overwriting, try place the new value at the beginning of the key list.
 			fileIt = dirInfo->m_files.find(token);
@@ -212,6 +239,85 @@ void ArchiveFileSystem::loadIntoDirectoryTree(ArchiveFile *archiveFile, Bool ove
 
 void ArchiveFileSystem::loadMods()
 {
+#if RTS_ZEROHOUR
+	// GeneralsX @bugfix Android port 13/09/2026 Mount the GeneralsOnline community
+	// data patch, which is why this port could not join a single PC-hosted lobby.
+	//
+	// The lobby gate compares INI checksums, and the two never matched: this port
+	// reports 4272612339, every PC lobby reports 2180732466. It was tempting to
+	// read that as "the PC players are modded" -- GeneralsOnline's own source even
+	// calls 4272612339 VANILLA_INI_CRC -- but it is the other way round. The PC
+	// client loads an extra archive nobody installs by hand: the community patch
+	// is a data pack it downloads into the user-data folder and mounts on every
+	// launch unless explicitly disabled, so 2180732466 is simply what a normal
+	// GeneralsOnline install computes, and matching it is not a workaround.
+	//
+	// Mounted sorted-by-name rather than as an overwrite, which is what the PC
+	// client does and what the "500_900_" prefix is for: the patch takes priority
+	// over the retail archives because digits sort ahead of letters, and later
+	// data packs slot in by number rather than by mount order.
+	//
+	// The path is the user-data folder, unchanged from the PC client's -- which
+	// on this port is already a plain, visible directory laid out exactly like
+	// Windows' Documents leaf (see SDL3Main.cpp and BuildUserDataPathFromRegistry).
+	// So this needs no new location and invents no convention: the same relative
+	// path under the folder that already holds Options.ini, save games and Maps.
+	//
+	// Presence is the switch. Without the file this does nothing and the port
+	// behaves as before; with it, the INI checksum should land on the PC's value
+	// -- and land on it honestly, because the simulation is then reading the same
+	// unit data, which is the whole point of the checksum.
+	{
+		AsciiString userData = TheGlobalData->getPath_UserData();
+		if (userData.isNotEmpty() && !userData.endsWith("/") && !userData.endsWith("\\"))
+			userData.concat('/');
+
+		AsciiString patchPath;
+		AsciiString disableMarkerPath;
+
+		if (userData.isNotEmpty())
+		{
+			patchPath = userData;
+			patchPath.concat("GeneralsOnlineGameData/500_900_CommunityPatch_CoreINI.big");
+
+			disableMarkerPath = userData;
+			disableMarkerPath.concat(kCommunityPatchDisableMarker);
+		}
+
+		// The PC client has a settings switch for this (DataPacks_UseCommunityPatch)
+		// and a command-line override; a marker file is this port's equivalent, and
+		// it sits beside the patch so turning the data off never means deleting it.
+		const Bool disabled = disableMarkerPath.isNotEmpty()
+			&& TheLocalFileSystem->doesFileExist(disableMarkerPath.str());
+
+		if (disabled)
+		{
+			fprintf(stderr, "[gxbig] community patch disabled by %s; INI stays retail\n",
+				disableMarkerPath.str());
+		}
+		else if (patchPath.isNotEmpty() && TheLocalFileSystem->doesFileExist(patchPath.str()))
+		{
+			ArchiveFile* archiveFile = openArchiveFile(patchPath.str());
+			if (archiveFile != nullptr)
+			{
+				loadIntoDirectoryTree(archiveFile, FALSE, TRUE);
+				m_archiveFileMap[patchPath] = archiveFile;
+				fprintf(stderr, "[gxbig] community patch mounted: %s\n", patchPath.str());
+			}
+			else
+			{
+				fprintf(stderr, "[gxbig] community patch found but could not be opened: %s\n", patchPath.str());
+			}
+		}
+		else
+		{
+			fprintf(stderr, "[gxbig] no community patch archive at %s; INI stays retail\n",
+				patchPath.isEmpty() ? "<no user data dir>" : patchPath.str());
+		}
+		fflush(stderr);
+	}
+#endif
+
 	if (TheGlobalData->m_modBIG.isNotEmpty())
 	{
 		ArchiveFile *archiveFile = openArchiveFile(TheGlobalData->m_modBIG.str());

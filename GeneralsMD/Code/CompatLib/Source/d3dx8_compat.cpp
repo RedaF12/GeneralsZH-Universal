@@ -2,10 +2,20 @@
 // Do NOT redefine it here -- that causes -Wmacro-redefined with Clang.
 
 #include "d3dx8core.h"
+#include <cstdint>	// GeneralsX @bugfix Android port 16/09/2026 uint16_t/uint32_t
+						// below (the MinGW/Apple manual box-filter fallback) used to
+						// come in transitively via gli.hpp; the MinGW branch doesn't
+						// include that anymore.
 
 // GeneralsX @build felipebraz 20/06/2025 GLI causes make_vec4 ambiguity with Apple Clang (GLM version mismatch).
 // On macOS, exclude GLI and use stub implementations for the surface scaling path.
-#ifndef __APPLE__
+// GeneralsX @bugfix Android port 16/09/2026 MinGW-w64/GCC hits the same
+// gli/glm make_vec4 overload ambiguity the Apple Clang branch below was
+// already written for (gli::generate_mipmaps's cube-array template path
+// pulls in gli::make_vec4 and glm::make_vec4 together, and D3D8 never had
+// texture cube arrays to begin with -- gli instantiates that path anyway).
+// Route MinGW through the same manual box-filter fallback.
+#if !defined(__APPLE__) && !defined(__MINGW32__)
 #include <gli/gli.hpp>
 #include <gli/generate_mipmaps.hpp>
 #endif
@@ -106,7 +116,7 @@ D3DXLoadSurfaceFromSurface(
 		return D3D_OK;
 	}
 
-#ifndef __APPLE__
+#if !defined(__APPLE__) && !defined(__MINGW32__)
 	// Pick a compatible format
 	gli::format imageFormat = gli::format::FORMAT_RGBA8_UNORM_PACK8;
 

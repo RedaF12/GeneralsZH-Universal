@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Generals Zero Hour</string>
+    <string name="app_name">GeneralsZH</string>
     <string name="common_cancel">Abbrechen</string>
 
     <!-- SetupActivity: title / fallback -->
@@ -49,6 +49,17 @@
 
     <!-- SetupActivity: Render Backend card -->
     <string name="setup_card_render_backend">Render-Backend</string>
+    <string name="setup_card_sim_rate">Simulationsrate</string>
+    <string name="setup_sim_rate_30_short">30 Hz</string>
+    <string name="setup_sim_rate_60_short">60 Hz</string>
+    <string name="setup_sim_rate_30_desc">30 Hz entspricht allen bisherigen Versionen dieser Portierung. Android-gegen-Android funktioniert damit, ein Spiel gegen einen Windows-Spieler läuft aber auseinander.</string>
+    <string name="setup_sim_rate_60_desc">60 Hz entspricht dem GeneralsOnline-Client unter Windows und ist die einzige Rate, mit der Cross-Play möglich ist. Die Simulation leistet doppelt so viel Arbeit pro Sekunde, daher kann das Spiel auf langsameren Geräten unter voller Geschwindigkeit laufen.</string>
+    <string name="setup_sim_rate_help">Die Taktrate wird beim Kompilieren der Engine festgelegt, deshalb enthält die App beide Versionen und lädt die hier gewählte. Die Änderung greift beim nächsten Start des Spiels. Beide Spieler eines Matches müssen dieselbe Rate verwenden.</string>
+    <string name="setup_toast_sim_rate_saved">Simulationsrate gespeichert. Sie greift beim nächsten Start des Spiels.</string>
+    <string name="online_crossplay_hz_title">Simulationsrate auf 60 Hz umgestellt</string>
+    <string name="online_crossplay_hz_message">Der Windows-Client simuliert mit 60 Hz, und ein 30-Hz-Client kann damit nicht Schritt halten. Cross-Play hat dieses Gerät deshalb auf 60 Hz umgestellt. Die Änderung greift beim nächsten Start des Spiels.\n\nDas verdoppelt die Simulationsarbeit pro Sekunde. Läuft das Spiel langsam, schalte Cross-Play ab oder stelle unter „Grafik“ wieder auf 30 Hz — dann sind aber nur Partien gegen andere Android-Spieler mit 30 Hz möglich.</string>
+    <string name="online_crossplay_hz_30">Simulationsrate: 30 Hz — kann nicht mit einem PC synchron bleiben</string>
+    <string name="online_crossplay_hz_60">Simulationsrate: 60 Hz — entspricht dem PC-Client</string>
     <string name="setup_render_backend_help">Welche Grafik-API das Spiel verwendet. Wirkt ab dem nächsten Spielstart, nicht sofort.\n\nOpenGL ES (Standard): ein nativer Renderer, geschrieben für diesen Port. Er ist der Standard, weil er auf jedem bisher getesteten Gerät funktioniert, auch dort, wo Vulkan fehlerhafte Grafik liefert. Fang hier an und ändere es nur mit gutem Grund.\n\nOpenGL ES + ANGLE: derselbe Renderer, aber über Googles ANGLE geleitet, das ihn nach Vulkan übersetzt, statt über den GLES-Treiber deines Telefons. ANGLE steckt in dieser App, braucht also weder eine Mindest-Android-Version noch eine Systemeinstellung. Im Betrieb oft schneller, jedoch kann ein Menü mit vielen Elementen (Scharmützel-Optionen) beim ersten Öffnen stocken, während ANGLE das Nötige kompiliert; danach nicht mehr, bis du das Menü verlässt und erneut öffnest.\n\nVulkan: das ursprüngliche Backend, über DXVKs Übersetzung von Direct3D 8 nach Vulkan. Schneller als die anderen auf Telefonen, deren Treiber damit umgehen kann, typischerweise neuere Snapdragon. Es hängt aber vollständig an diesem Treiber, und auf manchen GPUs entstehen magentafarbene Flächen, verzerrte Geometrie oder kaputte Menüs, gegen die keine Einstellung hier hilft \u2014 gemeldet wurden PowerVR BXM und Samsung Xclipse. Wenn Vulkan auf deinem Gerät falsch aussieht, ist genau dafür der Standard da.\n\nDie Abschnitte „Eigener Vulkan-Treiber“ und „DXVK-Konfiguration“ erscheinen nur bei ausgewähltem Vulkan.</string>
     <string name="setup_render_backend_gpu">Deine GPU: %1$s</string>
     <string name="setup_render_backend_status">Aktuell: %1$s</string>
@@ -215,4 +226,70 @@
     <string name="setup_render_backend_gles_short">GLES</string>
     <string name="setup_render_backend_gles_angle_short">ANGLE</string>
     <string name="setup_render_backend_vulkan_short">Vulkan</string>
+    <string name="setup_switch_gx_net_trace">Online-Netzwerkprotokoll</string>
+    <string name="setup_switch_gx_net_trace_desc">Zeichnet jede Anfrage des Spiels an die GeneralsOnline-Server samt Antwort auf. Aktiviere dies, wenn Anmeldung, Lobby oder Matchmaking erst im Spiel fehlschlagen. Die Anfragen des Launchers werden immer aufgezeichnet; dies ergänzt die des Spiels. Schaltet außerdem die Desync-Diagnose für das plattformübergreifende Spiel ein: die Prüfsummen der Simulation, die in jedem Intervall verglichen werden, und in einer Wiederholung die Prüfsumme jedes einzelnen Objekts. (gx_net_trace.txt)</string>
+    <string name="netdiag_title">Netzwerkdiagnose</string>
+    <string name="netdiag_row_note">Prüfen, ob dieses Gerät die GeneralsOnline-Server erreicht, und einen Bericht für eine Fehlermeldung erstellen.</string>
+    <string name="netdiag_intro">Geprüft wird der Reihe nach: ob ein funktionierendes Netzwerk vorhanden ist, ob die GeneralsOnline-Servernamen auflösbar sind, ob die Server antworten und was sie zur Anmeldung sagen.\n\nEs wird nichts verschickt. Zum Start auf „Ausführen“ tippen.</string>
+    <string name="netdiag_running">Läuft…</string>
+    <string name="netdiag_running_step">Läuft… (%1$s)</string>
+    <string name="netdiag_button_run">Diagnose ausführen</string>
+    <string name="netdiag_button_share">Bericht teilen</string>
+    <string name="netdiag_button_copy">Kopieren</string>
+    <string name="netdiag_toast_copied">Bericht in die Zwischenablage kopiert.</string>
+    <string name="netdiag_toast_share_failed">Bericht konnte nicht geteilt werden: %1$s</string>
+    <string name="netdiag_share_subject">GeneralsZH-Netzwerkprotokoll</string>
+    <string name="online_status_banned">Dieses Konto ist auf GeneralsOnline gesperrt. Einspruch ist über deren Discord möglich.</string>
+    <string name="online_status_banned_reason">Dieses Konto ist auf GeneralsOnline gesperrt: %1$s</string>
+    <string name="online_status_requesting_code">Anmeldecode wird vom Server angefordert…</string>
+    <string name="online_status_no_login_code">Der Server hat keinen Anmeldecode ausgegeben. Prüfe die Verbindung und versuche es erneut, oder führe die Netzwerkdiagnose unter Werkzeuge aus.</string>
+    <string name="online_card_datapacks">Online-Spieldaten</string>
+    <string name="online_datapacks_help">Für das Spiel im Netz fehlen dem Spiel zwei Dinge: der Community-Datenpatch, von dem abhängt, ob ein PC-Spiel dieses Gerät annimmt, und die Community-Karten, auf denen gespielt wird. Beides wird hier direkt von GeneralsOnline geladen — ganz ohne PC.</string>
+    <string name="online_button_datapacks_update">Aktualisieren</string>
+    <string name="online_datapacks_checking">Suche nach Updates…</string>
+    <string name="online_datapacks_downloading">Wird geladen… %1$d%%</string>
+    <string name="online_datapacks_installing">Wird installiert…</string>
+    <string name="online_datapacks_done">Auf %1$s aktualisiert. %2$d Dateien installiert.</string>
+    <string name="online_datapacks_failed">Update fehlgeschlagen: %1$s</string>
+    <string name="online_datapacks_installed">Installiert: Version %1$s</string>
+    <string name="online_datapacks_not_installed">Noch nicht installiert.</string>
+    <string name="online_button_datapacks_delete">Löschen</string>
+    <string name="online_switch_datapacks">Community-Datenpatch verwenden</string>
+    <string name="online_switch_datapacks_desc">Aus lässt den Download liegen, das Spiel liest aber wieder die Retail-Daten, und PC-Spiele weisen dieses Gerät ab. Wirkt beim nächsten Spielstart.</string>
+    <string name="online_datapacks_chip_sign_in_first">Zuerst anmelden</string>
+    <string name="online_datapacks_chip_required">Für das Online-Spiel nötig — auf Aktualisieren tippen</string>
+    <string name="online_datapacks_chip_off">Geladen, aber ausgeschaltet</string>
+    <string name="online_datapacks_chip_ready">Bereit für das Online-Spiel</string>
+    <string name="online_datapacks_prompt">Von einem PC gehostete Spiele weisen dieses Gerät ab, solange der Community-Datenpatch fehlt, und gespielt wird auf den Community-Karten. Beides jetzt laden? Etwa 30 MB.</string>
+    <string name="online_datapacks_prompt_later">Später</string>
+    <string name="online_datapacks_delete_confirm">Entfernt nur die Dateien aus diesem Download. Eigene Karten und Spielstände bleiben unangetastet.</string>
+    <string name="online_datapacks_deleted">%1$d Dateien gelöscht.</string>
+    <string name="online_datapacks_delete_no_record">Nichts zu löschen: Es gibt keinen Eintrag über eine Installation durch diesen Launcher.</string>
+    <string name="online_datapacks_switch_failed">Einstellung konnte nicht geändert werden. Prüfen Sie, ob der Datenordner beschreibbar ist.</string>
+    <string name="online_card_crossplay">Plattformübergreifendes Spiel</string>
+    <string name="online_crossplay_help">Spiele des Windows-Clients weisen dieses Gerät normalerweise ab: Es sind zwei verschiedene Programme, deren EXE-Prüfsummen nie übereinstimmen können.</string>
+    <string name="online_crossplay_patch_found">Community-Datenpatch installiert</string>
+    <string name="online_crossplay_patch_missing">Community-Datenpatch fehlt — auf Aktualisieren tippen</string>
+    <string name="online_switch_crossplay">Mit PC-Spielern spielen</string>
+    <string name="online_switch_crossplay_desc">Meldet die EXE-Prüfsumme des Windows-Clients, damit dessen Spiele dich annehmen. Diese Prüfsumme ist kein Anti-Cheat — sie verhindert, dass Maschinen zusammen spielen, die das Match unterschiedlich berechnen würden; das kann die Partie für alle in der Lobby zerstören. Aktiviere es für einen eigenen PC, und erst nachdem dessen INI-Daten in diesen Spielordner kopiert wurden.</string>
+    <string name="replaycheck_title">Replay-Prüfung</string>
+    <string name="replaycheck_row_note">Ein PC-Replay mit diesem Build durchlaufen lassen, ohne zuzusehen, oder zu einem Frame springen, und sehen, wo die Prüfsummen auseinandergehen.</string>
+    <string name="replaycheck_refresh">Aktualisieren</string>
+    <string name="replaycheck_last_result">Letztes Ergebnis</string>
+    <string name="replaycheck_no_result">Es wurde noch keine Prüfung ausgeführt.</string>
+    <string name="replaycheck_result_match">%1$s: stimmt an allen %2$s von %3$s Prüfpunkten mit der Aufnahme überein (%4$s Frames, %5$s s).</string>
+    <string name="replaycheck_result_mismatch">%1$s: erste Abweichung bei Frame %2$s, letzte Übereinstimmung bei %3$s. %4$s von %5$s Prüfpunkten stimmen überein (%6$s Frames, %7$s s). Bitte die Logs senden.</string>
+    <string name="replaycheck_mode">Modus</string>
+    <string name="replaycheck_mode_run">Durchlaufen lassen</string>
+    <string name="replaycheck_mode_watch">Ab Frame ansehen</string>
+    <string name="replaycheck_mode_help">Durchlaufen lassen: Das Replay wird so schnell simuliert, wie das Telefon es erlaubt, stoppt kurz nach der ersten Abweichung oder am Ende und kehrt mit dem Ergebnis hierher zurück. Ab Frame ansehen: spult bis zum Frame vor und spielt dann normal weiter.</string>
+    <string name="replaycheck_frame_label">Frame</string>
+    <string name="replaycheck_pick">Replays (zum Starten antippen)</string>
+    <string name="replaycheck_none">Keine .rep-Dateien in %1$s</string>
+    <string name="replaycheck_no_game_folder">Wähle zuerst den Spielordner im Launcher.</string>
+    <string name="replaycheck_need_frame">Gib den Frame ein, bis zu dem vorgespult werden soll.</string>
+    <string name="replaycheck_trace_enabled">Netzwerk-Trace für die Prüfung eingeschaltet.</string>
+    <string name="replaycheck_trace_failed">Netzwerk-Trace konnte nicht eingeschaltet werden; im Log fehlen die Prüfsummen-Details.</string>
+    <string name="replaycheck_crc_every_frame">Prüfsumme jedes Frames</string>
+    <string name="replaycheck_crc_every_frame_help">Schreibt zusätzlich die Logik-Prüfsumme jedes Frames ins Log. Damit lässt sich eine Kopie des Replays bauen, die der PC-Client Frame für Frame prüft. Langsamer.</string>
 </resources>

@@ -30,6 +30,8 @@
 
 // INCLUDES ///////////////////////////////////////////////////////////////////////////////////////
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
+#include <cwchar>
+#include <string>
 
 #include "gamespy/peer/peer.h"
 
@@ -220,6 +222,69 @@ static UnsignedByte grabUByte(const char *s)
 	return b;
 }
 
+// GeneralsX @bugfix Android port 13/09/2026 Drops the lines of a translated
+// heading that still carry a printf specifier, for a heading that is displayed
+// with no arguments to fill one.
+//
+// MOTD:NumPlayersHeading is two sentences: a welcome, and a player count. EA
+// removed the count from the English string in patch 1.01 and removed the
+// matching argument, but never touched the translations -- so every localised
+// build has been handing format() a "%d" with nothing behind it and printing
+// whatever was on the stack ("-1229458044 players online" on a Russian
+// install). Removing just the specifier would leave "there are currently
+// online", a sentence with a hole in it, so the whole line goes. The welcome
+// survives, and the real count is in the server's own MOTD directly below it.
+static UnicodeString dropLinesWithFormatSpecifiers(const UnicodeString& text)
+{
+	std::wstring out;
+	std::wstring line;
+	bool lineHasSpecifier = false;
+
+	const WideChar* p = text.str();
+	for (;; ++p)
+	{
+		const WideChar c = (p != nullptr) ? *p : L'\0';
+
+		if (c == L'\n' || c == L'\0')
+		{
+			if (!lineHasSpecifier)
+			{
+				out.append(line);
+				if (c == L'\n')
+				{
+					out.push_back(L'\n');
+				}
+			}
+			line.clear();
+			lineHasSpecifier = false;
+
+			if (c == L'\0')
+			{
+				break;
+			}
+			continue;
+		}
+
+		if (c == L'%')
+		{
+			// "%%" is an escaped percent sign, not a conversion.
+			if (*(p + 1) == L'%')
+			{
+				line.push_back(L'%');
+				++p;
+				continue;
+			}
+			lineHasSpecifier = true;
+		}
+
+		line.push_back(c);
+	}
+
+	UnicodeString result;
+	result.set(out.c_str());
+	return result;
+}
+
 static void updateNumPlayersOnline()
 {
 	GameWindow *playersOnlineWindow = TheWindowManager->winGetWindowFromId(
@@ -249,7 +314,10 @@ static void updateNumPlayersOnline()
 		//Kris: Patch 1.01 - November 12, 2003
 		//Removed number of players from string, and removed the argument. The number is incorrect anyways...
 		//This was a Harvard initiated fix.
-		headingStr.format(TheGameText->fetch("MOTD:NumPlayersHeading"));
+		// GeneralsX @bugfix Android port 13/09/2026 That fix only ever reached the
+		// English string -- see dropLinesWithFormatSpecifiers above for what every
+		// other localisation was printing instead.
+		headingStr = dropLinesWithFormatSpecifiers(TheGameText->fetch("MOTD:NumPlayersHeading"));
 
 		//<hexcol>%hs for colors
 		while (headingStr.nextToken(&line, L"\n"))
@@ -368,7 +436,12 @@ void HandleOverallStats( const char* szHTTPStats, unsigned len )
 		//      we want win% = team's wins / total # games played by all teams
 		const char* pTotal = FindNextNumber(pSide);
 		const char* pWins = FindNextNumber(pTotal);
-		float percent = atof(pWins) / max(1,atof(pTotal));  //max prevents divide by zero
+		// GeneralsX @bugfix Android port 16/09/2026 max(1, atof(pTotal)) relied on
+		// gamespy's untyped ternary macro (max(a,b) => (a)>(b)?(a):(b)), which
+		// tolerated the int/double mismatch; PeerDefs.h #undefs that macro now
+		// (needed so <chrono> parses at all on a real Windows build), so this
+		// falls through to std::max, which requires matching types.
+		float percent = atof(pWins) / max(1.0,atof(pTotal));  //max prevents divide by zero
 		s_totalWinPercent += percent;
 
 		s_winStats.insert(std::make_pair( side, percent ));

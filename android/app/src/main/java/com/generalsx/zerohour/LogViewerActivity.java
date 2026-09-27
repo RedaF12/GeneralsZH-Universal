@@ -263,6 +263,29 @@ public class LogViewerActivity extends Activity {
                 if (extDir != null) {
                     fileCount += addLogFileToZip(zos, new File(extDir, "generals-stderr.log"));
                     fileCount += addLogFileToZip(zos, new File(extDir, "generals-stderr-prev.log"));
+                    // GeneralsX @feature Android port 13/09/2026 The
+                    // launcher's own GeneralsOnline request log. Written by a
+                    // different process than the engine logs beside it, so it
+                    // is the only record of a sign-in that failed before the
+                    // game ever started.
+                    fileCount += addLogFileToZip(zos, new File(extDir, NetworkTrace.LOG_NAME));
+                    fileCount += addLogFileToZip(zos, new File(extDir, NetworkTrace.LOG_NAME + ".prev"));
+                }
+                // GeneralsX @feature Android port 23/09/2026 The Replay check's summary and
+                // the newest event record it wrote (Replays/<name>.gamestats.json), which is
+                // what gets compared with the PC client's -exportStats file.
+                File userData = DataPackInstaller.userDataDir();
+                fileCount += addLogFileToZip(zos, new File(userData, "gx_replay_check_result.txt"));
+                File[] stats = new File(userData, "Replays").listFiles(
+                    (d, name) -> name.endsWith(".gamestats.json"));
+                if (stats != null && stats.length > 0) {
+                    File newest = stats[0];
+                    for (File f : stats) {
+                        if (f.lastModified() > newest.lastModified()) {
+                            newest = f;
+                        }
+                    }
+                    fileCount += addLogFileToZip(zos, newest);
                 }
             }
 

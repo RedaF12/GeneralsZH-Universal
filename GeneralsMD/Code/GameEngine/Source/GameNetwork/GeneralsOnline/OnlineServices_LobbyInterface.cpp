@@ -3,7 +3,18 @@
 #include "GameNetwork/GeneralsOnline/HTTP/HTTPManager.h"
 #include "GameNetwork/GeneralsOnline/OnlineServices_Init.h"
 #include "GameNetwork/GeneralsOnline/PluginInterfaces.h"
+// GeneralsX @bugfix Android port 16/09/2026 This is the only unconditional
+// P2P-transport dependency in this file -- every actual use of the complete
+// NetworkMesh type below is already gated on GENERALS_ONLINE_ENABLE_P2P_TRANSPORT
+// (pointer-only uses work fine against the forward declaration in
+// NGMP_include.h/OnlineServices_Init.h), but this raw #include still pulled in
+// the real definition -- and with it <steam/isteamnetworkingutils.h> -- on every
+// platform, including the ones where GameNetworkingSockets is never linked
+// (see the CMakeLists.txt if(ANDROID) guard on that library). Gate the include
+// itself the same way.
+#if defined(GENERALS_ONLINE_ENABLE_P2P_TRANSPORT)
 #include "GameNetwork/GeneralsOnline/NetworkMesh.h"
+#endif // GENERALS_ONLINE_ENABLE_P2P_TRANSPORT
 #include "GameClient/MapUtil.h"
 #include "GameLogic/GameLogic.h"
 
@@ -1052,6 +1063,15 @@ void NGMP_OnlineServices_LobbyInterface::JoinLobby(LobbyEntry lobbyInfo, std::st
 			// TODO_NGMP: Remove this and just hardcode it or provide from service
 			j["preferred_port"] = 0;
 
+			// GeneralsX @bugfix Android port 13/09/2026 Upstream's JoinLobby sends
+			// this and ours did not -- the only difference left between the two
+			// requests. CreateLobby here has always sent it (and creating a lobby
+			// works), so this is an omission on the join path rather than a
+			// decision. On this platform the plugin is a stub and the value is 0,
+			// which is what every lobby in a live list reports anyway; the point is
+			// that the field is present, not what it holds.
+			j["anticheat_id"] = AnticheatPlugInterface::GetAnticheatIdentifier();
+
 			j["has_map"] = bHasMap;
 
 			if (!strPassword.empty())
@@ -1062,8 +1082,32 @@ void NGMP_OnlineServices_LobbyInterface::JoinLobby(LobbyEntry lobbyInfo, std::st
 			std::string strPostData = j.dump();
 
 			// create our mesh
-			// GeneralsX @bugfix Android port 10/07/2026 P2P transport (NetworkMesh)
-			// deferred, see NGMP_include.h -- leave m_pLobbyMesh null in this build.
+			//
+			// GeneralsX @bugfix Android port 13/09/2026 Built HERE, before the
+			// request below, and that ordering is load-bearing -- an earlier
+			// attempt to defer it until the TURN credentials had arrived broke
+			// joining outright.
+			//
+			// The service pushes NETWORK_CONNECTION_START_SIGNALLING over the
+			// WebSocket as soon as the join is registered, and on a real device
+			// that push arrives ~78 ms BEFORE the client's own HTTP response
+			// callback. The handler drops it when there is no mesh yet
+			// (OnlineServices_RoomsInterface.cpp, "Network mesh is null"), so the
+			// joiner never starts signalling, never opens an outbound connection,
+			// and then cannot accept the host's inbound one either: the accept
+			// path matches the incoming handle against m_mapConnections, finds
+			// nothing, and falls through in silence.
+			//
+			// The retry cannot save it, because the player with the higher user id
+			// is the one responsible for re-requesting signalling and that code
+			// sits behind the same lookup that just failed. Both sides then wait
+			// for each other until the connection times out.
+			//
+			// Upstream builds the mesh here too, with TURN credentials that are
+			// equally empty at this point -- it reads them from the response that
+			// has not arrived yet, exactly as we do. Empty relay credentials on
+			// the joining side are therefore the normal state of affairs and not
+			// worth reordering anything for.
 #if defined(GENERALS_ONLINE_ENABLE_P2P_TRANSPORT)
 			if (m_pLobbyMesh == nullptr)
 			{
@@ -1092,7 +1136,42 @@ void NGMP_OnlineServices_LobbyInterface::JoinLobby(LobbyEntry lobbyInfo, std::st
 					// TODO_NGMP: Dont do extra get here, just return it in the put...
 					EJoinLobbyResult JoinResult = EJoinLobbyResult::JoinLobbyResult_JoinFailed;
 
-					if (statusCode == 200 && bSuccess)
+					// GeneralsX @bugfix Android port 13/09/2026 The server refuses a join
+					// with HTTP 200 and {"success":false} in the body, and "bSuccess" below
+					// is curl's verdict on the transfer, not the server's on the join. So a
+					// refusal was read as an accepted join, and the comment further down --
+					// "no response body from this, just http codes" -- was simply no longer
+					// true.
+					//
+					// What that looked like on a device: the joining player got "Joined
+					// lobby", sat in a lobby the server had never put them in, never
+					// appeared in the host's player list, could not take a slot, and was
+					// left behind when the host started. The empty turn_username/turn_token
+					// in that same refusal are the other half of it -- without TURN
+					// credentials the peer mesh has no relay to fall back on, so even the
+					// connection could not have been established.
+					bool bServerAccepted = true;
+					try
+					{
+						nlohmann::json jsonObject = nlohmann::json::parse(strBody);
+						if (jsonObject.contains("success"))
+						{
+							bServerAccepted = jsonObject["success"].get<bool>();
+						}
+					}
+					catch (...)
+					{
+						// An unparseable body is not a refusal; fall back to the status code.
+					}
+
+					if (!bServerAccepted)
+					{
+						NetworkLog(ELogVerbosity::LOG_RELEASE,
+							"[NGMP] JoinLobby refused by server (HTTP %d, success=false). The usual cause is that this account is already in the lobby -- one account cannot occupy two seats, so two devices need two accounts.",
+							statusCode);
+					}
+
+					if (statusCode == 200 && bSuccess && bServerAccepted)
 					{
 						JoinResult = EJoinLobbyResult::JoinLobbyResult_Success;
 					}
@@ -1122,6 +1201,8 @@ void NGMP_OnlineServices_LobbyInterface::JoinLobby(LobbyEntry lobbyInfo, std::st
 							m_strTURNUsername = resp.turn_username;
 							m_strTURNToken = resp.turn_token;
 							NetworkLog(ELogVerbosity::LOG_DEBUG, "Got TURN username: %s, token: %s", m_strTURNUsername.c_str(), m_strTURNToken.c_str());
+							NetworkLog(ELogVerbosity::LOG_RELEASE, "[NGMP] JoinLobby stored TURN credentials (username empty=%d, token empty=%d) before building the mesh",
+								(int)m_strTURNUsername.empty(), (int)m_strTURNToken.empty());
 						}
 						catch (...)
 						{

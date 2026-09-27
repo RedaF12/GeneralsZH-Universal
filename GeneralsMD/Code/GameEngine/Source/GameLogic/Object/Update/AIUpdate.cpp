@@ -160,15 +160,6 @@ const LocomotorTemplateVector* AIUpdateModuleData::findLocomotorTemplateVector(L
 {
 	ThingTemplate *tt = (ThingTemplate *)instance;
 	AIUpdateModuleData *self = tt->friend_getAIModuleInfo();
-	// GeneralsX @bugfix Android port 12/07/2026 - Diagnostic logging for a real-device
-	// report (GitHub issue #2): the "Locomotor" field on airforcegeneral.ini's
-	// AirF_AmericaJetSpectreGunship1 throws, but every throw site in this function only
-	// carries a bare ErrorCode (INI_INVALID_DATA) with no message, and the generic
-	// field-level catch in INI.cpp can only report "Error reading field 'Locomotor'" --
-	// not which of the three possible causes it was, or what token was involved. Log
-	// each step so the next report pinpoints it exactly.
-	fprintf(stderr, "DEBUG-INI: parseLocomotorSet object='%s' self=%p\n", tt->getName().str(), (void*)self);
-	fflush(stderr);
 	if (!self)
 	{
 		DEBUG_CRASH( ("Attempted to specify a locomotor for object %s without an AIUpdate block.", tt->getName().str() ) );
@@ -176,11 +167,7 @@ const LocomotorTemplateVector* AIUpdateModuleData::findLocomotorTemplateVector(L
 	}
 
 	const char* setToken = ini->getNextToken();
-	fprintf(stderr, "DEBUG-INI: parseLocomotorSet setToken='%s'\n", setToken ? setToken : "(null)");
-	fflush(stderr);
 	LocomotorSetType set = (LocomotorSetType)INI::scanIndexList(setToken, TheLocomotorSetNames);
-	fprintf(stderr, "DEBUG-INI: parseLocomotorSet set=%d\n", (int)set);
-	fflush(stderr);
 	if (!self->m_locomotorTemplates[set].empty())
 	{
 		if (ini->getLoadType() != INI_LOAD_CREATE_OVERRIDES)
@@ -193,15 +180,11 @@ const LocomotorTemplateVector* AIUpdateModuleData::findLocomotorTemplateVector(L
 	self->m_locomotorTemplates[set].clear();
 	for (const char* token = ini->getNextToken(); token; token = ini->getNextTokenOrNull())
 	{
-		fprintf(stderr, "DEBUG-INI: parseLocomotorSet locomotorToken='%s'\n", token);
-		fflush(stderr);
 		if (!*token || stricmp(token, "None") == 0)
 			continue;
 
 		NameKeyType locoKey = NAMEKEY(token);
 		const LocomotorTemplate* lt = TheLocomotorStore->findLocomotorTemplate(locoKey);
-		fprintf(stderr, "DEBUG-INI: parseLocomotorSet findLocomotorTemplate('%s') -> %p\n", token, (const void*)lt);
-		fflush(stderr);
 		if (!lt)
 		{
 			// GeneralsX @bugfix Android port 12/07/2026 - A real-device log
@@ -1032,6 +1015,10 @@ void AIUpdateInterface::friend_notifyStateMachineChanged()
  * The "main loop" of the AI subsystem
  */
 DECLARE_PERF_TIMER(AIUpdateInterface_update)
+#if !(defined(_MSC_VER) && defined(_M_IX86))
+extern void gxFpCheckpoint(const char *where, const Object *obj, Int detail);
+#endif
+
 UpdateSleepTime AIUpdateInterface::update()
 {
 	//DEBUG_LOG(("AIUpdateInterface frame %d: %08lx",TheGameLogic->getFrame(),getObject()));
@@ -1045,7 +1032,17 @@ UpdateSleepTime AIUpdateInterface::update()
 	// assume we can sleep forever, unless the state machine (or turret, etc) demand otherwise
 	UpdateSleepTime subMachineSleep = UPDATE_SLEEP_FOREVER;
 
+#if !(defined(_MSC_VER) && defined(_M_IX86))
+	// GeneralsX @feature Android port 23/09/2026 Split the "invalid" fp-flag attribution
+	// (see gxFpCheckpoint in GameLogic.cpp) inside the AI update: the state that ran, and
+	// the locomotor, separately.
+	gxFpCheckpoint("before AI", getObject(), -1);
+	const Int gxStateBefore = (Int)getStateMachine()->getCurrentStateID();
+#endif
 	StateReturnType stRet = getStateMachine()->updateStateMachine();
+#if !(defined(_MSC_VER) && defined(_M_IX86))
+	gxFpCheckpoint("AI state", getObject(), gxStateBefore);
+#endif
 
 	if (IS_STATE_SLEEP(stRet))
 	{
@@ -1143,8 +1140,14 @@ UpdateSleepTime AIUpdateInterface::update()
 		subMachineSleep = UPDATE_SLEEP_NONE;
 	}
 
+#if !(defined(_MSC_VER) && defined(_M_IX86))
+	gxFpCheckpoint("AI misc", getObject(), -1);
+#endif
 	// do this objects movement
 	UpdateSleepTime tmp = doLocomotor();
+#if !(defined(_MSC_VER) && defined(_M_IX86))
+	gxFpCheckpoint("AI locomotor", getObject(), -1);
+#endif
 	if (tmp < subMachineSleep)
 		subMachineSleep = tmp;
 
@@ -4789,7 +4792,7 @@ void AIUpdateInterface::evaluateMoraleBonus( Bool inHorde, Bool allowNationalism
 		evaluateNationalismBonusClassic(inHorde, allowNationalism);
 		break;
 
-#if !RETAIL_COMPATIBLE_CRC
+#if !RETAIL_COMPATIBLE_CRC && defined(GENERALS_ONLINE_ENABLE_CONTROVERSIAL_NON_RETAIL_CHANGES)
 	case HORDEACTION_HORDE_FIXED:
 		evaluateNationalismBonus(inHorde, allowNationalism);
 		break;

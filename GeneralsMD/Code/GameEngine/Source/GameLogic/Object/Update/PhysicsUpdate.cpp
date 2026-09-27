@@ -33,8 +33,10 @@
 
 #include <Utility/intrin_compat.h>	// For _isnan compatibility
 #include "Common/PerfTimer.h"
+#include "Common/Player.h"
 #include "Common/ThingTemplate.h"
 #include "Common/Xfer.h"
+#include "GameClient/FXList.h"
 #include "GameLogic/GameLogic.h"
 #include "GameLogic/Module/AIUpdate.h"
 #include "GameLogic/Module/BodyModule.h"
@@ -67,6 +69,10 @@ const Real MAX_FRICTION = 0.99f;
 const Real STUN_RELIEF_EPSILON = 0.5f;
 
 #include "Common/CRCDebug.h"
+
+#if !(defined(_MSC_VER) && defined(_M_IX86))
+void gxPhysNote(Char kind, UnsignedInt id, const Real *values, Int count);
+#endif
 
 const Int MOTIVE_FRAMES = static_cast<float>(LOGICFRAMES_PER_SECOND) / 3;
 
@@ -363,6 +369,9 @@ void PhysicsBehavior::applyShock( const Coord3D *force )
 {
 	Coord3D resistedForce = *force;
 	resistedForce.scale( 1.0f - min( 1.0f, max( 0.0f, getPhysicsBehaviorModuleData()->m_shockResistance ) ) );
+#if defined(GENERALS_ONLINE_HIGH_FPS_SERVER)
+    resistedForce.scale(0.5f);
+#endif
 
 	// Apply the processed shock force to the object
 	applyForce(&resistedForce);
@@ -382,6 +391,16 @@ void PhysicsBehavior::applyRandomRotation()
 
 	Real randomModifier;
 
+#if defined(GENERALS_ONLINE) && defined(GENERALS_ONLINE_HIGH_FPS_SERVER)
+	randomModifier = GameLogicRandomValue(-1.0f, 1.0f);
+	m_yawRate += (getPhysicsBehaviorModuleData()->m_shockMaxYaw/2.f) * randomModifier;
+
+	randomModifier = GameLogicRandomValue(-1.0f, 1.0f);
+	m_pitchRate += (getPhysicsBehaviorModuleData()->m_shockMaxPitch / 2.f) * randomModifier;
+
+	randomModifier = GameLogicRandomValue(-1.0f, 1.0f);
+	m_rollRate += (getPhysicsBehaviorModuleData()->m_shockMaxRoll / 2.f) * randomModifier;
+#else
 	randomModifier = GameLogicRandomValue(-1.0f, 1.0f);
 	m_yawRate += getPhysicsBehaviorModuleData()->m_shockMaxYaw * randomModifier;
 
@@ -390,6 +409,7 @@ void PhysicsBehavior::applyRandomRotation()
 
 	randomModifier = GameLogicRandomValue(-1.0f, 1.0f);
 	m_rollRate += getPhysicsBehaviorModuleData()->m_shockMaxRoll * randomModifier;
+#endif
 
 #ifdef SLEEPY_PHYSICS
 	if (getFlag(IS_IN_UPDATE))
@@ -647,15 +667,33 @@ UpdateSleepTime PhysicsBehavior::update()
 		applyGravitationalForces();
 		applyFrictionalForces();
 
+#if !(defined(_MSC_VER) && defined(_M_IX86))
+		const Coord3D gxAccel = m_accel;
+		const Coord3D gxVelBefore = m_vel;
+#endif
+
 		// integrate acceleration into velocity
 		m_vel.x += m_accel.x;
 		m_vel.y += m_accel.y;
 		m_vel.z += m_accel.z;
 
+#if !(defined(_MSC_VER) && defined(_M_IX86))
+		const Coord3D gxVelUnclamped = m_vel;
+#endif
+
 		// when vel gets tiny, just clamp to zero
 		const Real THRESH = 0.001f;
+#if defined(GENERALS_ONLINE_HIGH_FPS_SERVER)
+		// Info: At 60Hz, motive acceleration can be smaller than THRESH and must accumulate across frames.
+		if (!isMotive())
+		{
+			if (fabsf(m_vel.x) < THRESH) m_vel.x = 0.0f;
+			if (fabsf(m_vel.y) < THRESH) m_vel.y = 0.0f;
+		}
+#else
 		if (fabsf(m_vel.x) < THRESH) m_vel.x = 0.0f;
 		if (fabsf(m_vel.y) < THRESH) m_vel.y = 0.0f;
+#endif
 		if (fabsf(m_vel.z) < THRESH) m_vel.z = 0.0f;
 
 		m_velMag = INVALID_VEL_MAG;
@@ -678,6 +716,21 @@ UpdateSleepTime PhysicsBehavior::update()
 			mtx.Adjust_Y_Translation(m_vel.y);
 			mtx.Adjust_Z_Translation(m_vel.z);
 		}
+
+#if !(defined(_MSC_VER) && defined(_M_IX86))
+		// GeneralsX @feature Android port 23/09/2026 Replay-mismatch physics trace, see
+		// gxPhysNote in GameLogic.cpp. Only objects with something acting on them.
+		if (gxAccel.x != 0.0f || gxAccel.y != 0.0f || gxAccel.z != 0.0f
+			|| gxVelBefore.x != 0.0f || gxVelBefore.y != 0.0f || gxVelBefore.z != 0.0f)
+		{
+			const Real gxValues[12] = {
+				oldPosZ, gxAccel.x, gxAccel.y, gxAccel.z,
+				gxVelBefore.z, gxVelUnclamped.x, gxVelUnclamped.y, gxVelUnclamped.z,
+				m_vel.z, mtx.Get_Z_Translation(),
+				isMotive() ? 1.0f : 0.0f, obj->testStatus(OBJECT_STATUS_BRAKING) ? 1.0f : 0.0f };
+			gxPhysNote('P', (UnsignedInt)obj->getID(), gxValues, 12);
+		}
+#endif
 
 		if (_isnan(mtx.Get_X_Translation()) || _isnan(mtx.Get_Y_Translation()) ||
 			_isnan(mtx.Get_Z_Translation())) {
@@ -1378,7 +1431,26 @@ void PhysicsBehavior::onCollide( Object *other, const Coord3D *loc, const Coord3
 					// fall into a building. if a vehicle, blow up. then destroy ourself (not die), regardless.
 					if (obj->isKindOf(KINDOF_VEHICLE))
 					{
+#if RETAIL_COMPATIBLE_CRC
 						TheWeaponStore->createAndFireTempWeapon(getPhysicsBehaviorModuleData()->m_vehicleCrashesIntoBuildingWeaponTemplate, obj, obj->getPosition());
+#else
+						// TheSuperHackers @bugfix Stubbjax 17/05/2026 Prevent building collisions from dealing collateral damage to other objects.
+						const WeaponTemplate* weaponTemplate = getPhysicsBehaviorModuleData()->m_vehicleCrashesIntoBuildingWeaponTemplate;
+						if (weaponTemplate != nullptr)
+						{
+							WeaponBonus nullBonus;
+
+							DamageInfo damageInfo;
+							damageInfo.in.m_damageType = weaponTemplate->getDamageType();
+							damageInfo.in.m_deathType = weaponTemplate->getDeathType();
+							damageInfo.in.m_sourceID = obj->getID();
+							damageInfo.in.m_sourcePlayerMask = obj->getControllingPlayer() ? obj->getControllingPlayer()->getPlayerMask() : 0;
+							damageInfo.in.m_amount = weaponTemplate->getPrimaryDamage(nullBonus);
+
+							other->attemptDamage(&damageInfo);
+							FXList::doFXObj(weaponTemplate->getFireFX(obj->getVeterancyLevel()), obj);
+						}
+#endif
 					}
 					TheGameLogic->destroyObject(obj);
 					return;
@@ -1388,7 +1460,26 @@ void PhysicsBehavior::onCollide( Object *other, const Coord3D *loc, const Coord3
 					// fall into a nonbuilding -- whatever. if we're a vehicle, quietly do a little damage.
 					if (obj->isKindOf(KINDOF_VEHICLE))
 					{
+#if RETAIL_COMPATIBLE_CRC
 						TheWeaponStore->createAndFireTempWeapon(getPhysicsBehaviorModuleData()->m_vehicleCrashesIntoNonBuildingWeaponTemplate, obj, obj->getPosition());
+#else
+						// TheSuperHackers @bugfix Stubbjax 19/04/2026 Prevent non-building collisions from repeatedly dealing collateral damage to other objects.
+						const WeaponTemplate* weaponTemplate = getPhysicsBehaviorModuleData()->m_vehicleCrashesIntoNonBuildingWeaponTemplate;
+						if (weaponTemplate != nullptr)
+						{
+							WeaponBonus nullBonus;
+
+							DamageInfo damageInfo;
+							damageInfo.in.m_damageType = weaponTemplate->getDamageType();
+							damageInfo.in.m_deathType = weaponTemplate->getDeathType();
+							damageInfo.in.m_sourceID = obj->getID();
+							damageInfo.in.m_sourcePlayerMask = obj->getControllingPlayer() ? obj->getControllingPlayer()->getPlayerMask() : 0;
+							damageInfo.in.m_amount = weaponTemplate->getPrimaryDamage(nullBonus);
+
+							other->attemptDamage(&damageInfo);
+							FXList::doFXObj(weaponTemplate->getFireFX(obj->getVeterancyLevel()), obj);
+						}
+#endif
 					}
 				}
 			}

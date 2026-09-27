@@ -54,6 +54,8 @@
 #include "GameLogic/Module/ProductionUpdate.h"
 #include "GameLogic/Object.h"
 #include "GameLogic/ScriptEngine.h"
+#include "GXTrace.h"
+#include "Common/GXReplayCheck.h"
 
 
 // PUBLIC /////////////////////////////////////////////////////////////////////////////////////////
@@ -277,6 +279,27 @@ Bool ProductionUpdate::queueUpgrade( const UpgradeTemplate *upgrade )
 	if( isUpgradeInQueue( upgrade ) == TRUE )
 		return FALSE;
 
+	// GeneralsX @bugfix Android port 24/09/2026 No upgrade research on an unfinished building.
+	//
+	// Measured against the GeneralsOnline PC client, not derived from its source. In
+	// Global_War.rep the skirmish AI script "USA Power Critical - H" pressed Advanced
+	// Control Rods on its whole team (TEAM_USE_COMMANDBUTTON_ABILITY) while one power plant
+	// was still a 0% foundation. This port queued and finished the research there too; the
+	// PC never gave that plant the upgrade, which the plant's upgrade mask in the checksum
+	// shows. Refusing the queue on a building under construction matches the PC's recording
+	// on all 811 checkpoints, to the end of the match. Every function on this path reads the
+	// same in the client source we have, so the client binary is the reference here. A player
+	// cannot reach this through the UI, whose command set for an unfinished building has no
+	// upgrade buttons; only scripts and the AI can.
+	// See docs/WORKDIR/lessons/LESSON-cross-play-desync-method.md.
+	if( getObject()->getStatusBits().test( OBJECT_STATUS_UNDER_CONSTRUCTION ) )
+	{
+		GX_NET_TRACE("upgrade queue frame %u: factory id=%u %s upgrade=%s refused, UNDER_CONSTRUCTION\n",
+			(unsigned)TheGameLogic->getFrame(), (unsigned)getObject()->getID(),
+			getObject()->getTemplate()->getName().str(), upgrade->getUpgradeName().str());
+		return FALSE;
+	}
+
 	// STOP cheaters by making sure they can actually build this
 	if( !getObject()->canProduceUpgrade(upgrade) )
 		return FALSE;
@@ -314,6 +337,14 @@ Bool ProductionUpdate::queueUpgrade( const UpgradeTemplate *upgrade )
 	// add this upgrade as in progress in the player
 	player->addUpgrade( upgrade, UPGRADE_STATUS_IN_PRODUCTION );
 
+	// GeneralsX @feature Android port 24/09/2026 The AI queues upgrades without a network
+	// message, so this is the only record of when (and with how much money) it did.
+	GX_NET_TRACE("upgrade queue frame %u: factory id=%u %s player %d upgrade=%s build frames %d money left %u%s construction %.1f%% by=%s\n",
+		(unsigned)TheGameLogic->getFrame(), (unsigned)getObject()->getID(), getObject()->getTemplate()->getName().str(),
+		(int)player->getPlayerIndex(), upgrade->getUpgradeName().str(), (int)upgrade->calcTimeToBuild( player ),
+		(unsigned)money->countMoney(),
+		getObject()->getStatusBits().test( OBJECT_STATUS_UNDER_CONSTRUCTION ) ? " UNDER_CONSTRUCTION" : "",
+		getObject()->getConstructionPercent(), GXTrace::currentScript());
 
 
 	return TRUE;  // queued
@@ -451,6 +482,13 @@ Bool ProductionUpdate::queueCreateUnit( const ThingTemplate *unitType, Productio
 	// tie to the end of the production queue
 	addToProductionQueue( production );
 
+	// GeneralsX @feature Android port 24/09/2026 Production state is not in the lockstep
+	// checksum, so a unit that leaves its factory on a different frame is the first thing
+	// either client can see. Queue and completion are logged to measure what delayed it.
+	GX_NET_TRACE("production queue frame %u: factory id=%u %s unit=%s production id=%d\n",
+		(unsigned)TheGameLogic->getFrame(), (unsigned)getObject()->getID(),
+		getObject()->getTemplate()->getName().str(), unitType->getName().str(), (int)productionID);
+
 	return TRUE;  // unit queued
 
 }
@@ -543,7 +581,7 @@ void ProductionUpdate::updateDoors()
 		if( m_doors[i].m_doorOpenedFrame )
 		{
 
-			if( now - m_doors[i].m_doorOpenedFrame > d->m_doorOpeningTime )
+			if( now - m_doors[i].m_doorOpenedFrame > d->m_doorOpeningTime + (UnsignedInt)GXReplayCheck::doorDelayFrames( m_doors[i].m_doorOpenedFrame ) )
 			{
 
 				// set our frame markers for door states
@@ -711,6 +749,10 @@ UpdateSleepTime ProductionUpdate::update()
 	else
 		totalProductionFrames = production->m_upgradeToResearch->calcTimeToBuild( player );
 
+	// GeneralsX @feature Android port 24/09/2026 Diagnostic only, see GXReplayCheck::upgradeShiftFrames.
+	if( production->m_type == PRODUCTION_UPGRADE )
+		totalProductionFrames += GXReplayCheck::upgradeShiftFrames( now + totalProductionFrames - production->m_framesUnderConstruction, (UnsignedInt)us->getID() );
+
 	// figure out our percent complete
 	production->m_percentComplete = INT_TO_REAL( production->m_framesUnderConstruction ) /
 																	INT_TO_REAL( totalProductionFrames ) *
@@ -815,6 +857,14 @@ UpdateSleepTime ProductionUpdate::update()
 							Object *newObj = TheThingFactory->newObject( production->m_objectToProduce,
 																	creationBuilding->getControllingPlayer()->getDefaultTeam() );
 
+							GX_NET_TRACE("production done frame %u: factory id=%u unit=%s new id=%u frames under construction %d of %d (%.6f%%) door %d opened %u wait-open %u closed %u\n",
+								(unsigned)TheGameLogic->getFrame(), (unsigned)creationBuilding->getID(),
+								production->m_objectToProduce->getName().str(), (unsigned)newObj->getID(),
+								(int)production->m_framesUnderConstruction, (int)totalProductionFrames,
+								production->m_percentComplete, (int)exitDoor,
+								door ? (unsigned)door->m_doorOpenedFrame : 0u, door ? (unsigned)door->m_doorWaitOpenFrame : 0u,
+								door ? (unsigned)door->m_doorClosedFrame : 0u);
+
 							newObj->setProducer(creationBuilding);
 
 							// call the exit interface to do the rally point and position stuff
@@ -892,6 +942,10 @@ UpdateSleepTime ProductionUpdate::update()
 		else if( production->m_type == PRODUCTION_UPGRADE )
 		{
 			const UpgradeTemplate *upgrade = production->m_upgradeToResearch;
+
+			GX_NET_TRACE("upgrade done frame %u: factory id=%u %s player %d upgrade=%s frames under construction %d of %d\n",
+				(unsigned)now, (unsigned)us->getID(), us->getTemplate()->getName().str(), (int)player->getPlayerIndex(),
+				upgrade->getUpgradeName().str(), (int)production->m_framesUnderConstruction, (int)totalProductionFrames);
 
 			// we finished an upgrade, lets add that money spent on it to the scorekeeper
 			player->getScoreKeeper()->addMoneySpent(upgrade->calcCostToBuild(player));

@@ -31,6 +31,8 @@
 // INCLUDES ///////////////////////////////////////////////////////////////////////////////////////
 #include "PreRTS.h"	// This must go first in EVERY cpp file in the GameEngine
 #define DEFINE_SLOWDEATHPHASE_NAMES
+#include "Common/NameKeyGenerator.h"
+#include "GXTrace.h"
 #include "Common/GameLOD.h"
 #include "Common/INI.h"
 #include "Common/RandomValue.h"
@@ -178,9 +180,18 @@ Int SlowDeathBehavior::getProbabilityModifier( const DamageInfo *damageInfo ) co
 	// Calculating how far past dead we were allows us to pick more spectacular deaths when
 	// severely killed, and more sedate ones when only slightly killed.
 	// eg ( 200 hp max, had 10 left, took 50 damage, 40 overkill, (40/200) * 100 = 20 overkill %)
-	Int overkillDamage = damageInfo->out.m_actualDamageDealt - damageInfo->out.m_actualDamageClipped;
+	//
+	// GeneralsX @bugfix Android port 23/09/2026 An object with 0 max health -- the GenericDebris
+	// a destroyed or cancelled building throws out, killed by KillWhenRestingOnGround -- makes
+	// overkillPercent 0/0 = NaN, and NaN is then converted to an Int. On the reference PC
+	// client (32-bit MSVC, SSE2) that gives 0x80000000, the sum below goes negative and is
+	// clamped to 1, so the caller's GameLogicRandomValue(1, total) returns without drawing.
+	// On ARM64 it gave 0, the sum stayed at m_probabilityModifier, and every piece of debris
+	// that came to rest drew one extra logic random value -- desynchronising a cross-play
+	// game from the first one that landed. realToIntTruncRef() converts as the PC does.
+	Int overkillDamage = realToIntTruncRef(damageInfo->out.m_actualDamageDealt - damageInfo->out.m_actualDamageClipped);
 	Real overkillPercent = (float)overkillDamage / (float)getObject()->getBodyModule()->getMaxHealth();
-	Int overkillModifier = overkillPercent * getSlowDeathBehaviorModuleData()->m_modifierBonusPerOverkillPercent;
+	Int overkillModifier = realToIntTruncRef(overkillPercent * getSlowDeathBehaviorModuleData()->m_modifierBonusPerOverkillPercent);
 
 	return max( getSlowDeathBehaviorModuleData()->m_probabilityModifier + overkillModifier, 1 );
 }
@@ -294,6 +305,11 @@ void SlowDeathBehavior::beginSlowDeath(const DamageInfo *damageInfo)
 				Coord3D force;
 				calcRandomForce(d->m_flingForce, d->m_flingForce + d->m_flingForceVariance,
 												d->m_flingPitch, d->m_flingPitch + d->m_flingPitchVariance, force);
+#if defined(GENERALS_ONLINE) && defined(GENERALS_ONLINE_HIGH_FPS_SERVER)
+				force.x /= 2.f;
+				force.y /= 2.f;
+				force.z /= 2.f;
+#endif
 				physics->setAllowToFall(true);
 				physics->applyForce(&force);
 				physics->setExtraBounciness(-1.0);					// we don't want this guy to bounce at all
@@ -502,6 +518,29 @@ void SlowDeathBehavior::onDie( const DamageInfo *damageInfo )
 	}
 	DEBUG_ASSERTCRASH(total > 0, ("Hmm, this is wrong"));
 
+
+	// GeneralsX @feature Android port 24/09/2026 The death roll draws a logic random value only
+	// when total > 1, so every input to total decides whether the RNG advances. Log them exactly.
+	if (GXTrace::isNetEnabled())
+	{
+		const Real dealt = damageInfo->out.m_actualDamageDealt;
+		const Real clipped = damageInfo->out.m_actualDamageClipped;
+		UnsignedInt dealtBits, clippedBits;
+		memcpy(&dealtBits, &dealt, sizeof(dealtBits));
+		memcpy(&clippedBits, &clipped, sizeof(clippedBits));
+		GX_NET_TRACE("slow death frame %u: id=%u %s total %d dealt %08X (%g) clipped %08X (%g) max health %g damage type %d death type %d\n",
+			(unsigned)TheGameLogic->getFrame(), (unsigned)obj->getID(), obj->getTemplate()->getName().str(), (int)total,
+			(unsigned)dealtBits, (double)dealt, (unsigned)clippedBits, (double)clipped,
+			(double)obj->getBodyModule()->getMaxHealth(), (int)damageInfo->in.m_damageType, (int)damageInfo->in.m_deathType);
+		for (BehaviorModule** m = obj->getBehaviorModules(); *m; ++m)
+		{
+			SlowDeathBehaviorInterface* sdu = (*m)->getSlowDeathBehaviorInterface();
+			if (sdu != nullptr)
+				GX_NET_TRACE("slow death frame %u:   module %s applicable %d modifier %d\n",
+					(unsigned)TheGameLogic->getFrame(), TheNameKeyGenerator->keyToName((*m)->getModuleNameKey()).str(),
+					(int)sdu->isDieApplicable(damageInfo), sdu->isDieApplicable(damageInfo) ? (int)sdu->getProbabilityModifier(damageInfo) : 0);
+		}
+	}
 
 	// this returns a value from 1...total, inclusive
 	Int roll = GameLogicRandomValue(1, total);
