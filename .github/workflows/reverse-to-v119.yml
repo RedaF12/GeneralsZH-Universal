@@ -1,0 +1,99 @@
+name: Reverse Repository to v119
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch_name:
+        description: "Branch to create/reset from v119"
+        required: true
+        default: "reverse-v119"
+
+permissions:
+  contents: write
+
+jobs:
+  reverse-v119:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout v119 with all submodules
+        uses: actions/checkout@v4
+        with:
+          ref: v119
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: true
+
+      - name: Verify v119 commit
+        shell: bash
+        run: |
+          set -e
+
+          EXPECTED="08b6332cb38f6ca87aba0df1453966462cef1cfc"
+          ACTUAL="$(git rev-parse HEAD)"
+
+          echo "Expected v119:"
+          echo "$EXPECTED"
+
+          echo "Checked out:"
+          echo "$ACTUAL"
+
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "::error::The checked out commit is not v119"
+            exit 1
+          fi
+
+      - name: Restore exact submodule state from v119
+        shell: bash
+        run: |
+          set -e
+
+          git submodule sync --recursive
+          git submodule update --init --recursive
+
+      - name: Verify gitlinks
+        shell: bash
+        run: |
+          set -e
+
+          echo "======================================"
+          echo "Gitlinks recorded by v119"
+          echo "======================================"
+
+          git ls-tree HEAD
+
+          echo
+          echo "======================================"
+          echo "Recursive submodule status"
+          echo "======================================"
+
+          git submodule status --recursive
+
+      - name: Create or reset reverse branch
+        shell: bash
+        env:
+          BRANCH_NAME: ${{ inputs.branch_name }}
+        run: |
+          set -e
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git checkout -B "$BRANCH_NAME" v119
+
+          echo "Branch:"
+          git branch --show-current
+
+          echo "Commit:"
+          git rev-parse HEAD
+
+      - name: Push reverse branch
+        shell: bash
+        env:
+          BRANCH_NAME: ${{ inputs.branch_name }}
+        run: |
+          set -e
+
+          git push origin \
+            "HEAD:${BRANCH_NAME}" \
+            --force-with-lease
